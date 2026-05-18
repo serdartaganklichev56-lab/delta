@@ -1,0 +1,10 @@
+AndroidManifest.xml ga qo'shilishi kerak bo'lgan qatorlar:
+
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+
+Va <application> ichiga:
+<service
+    android:name="io.livekit.android.service.ScreenCaptureService"
+    android:foregroundServiceType="mediaProjection"
+    android:exported="false" />

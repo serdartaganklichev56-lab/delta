@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1055786684802",
+    "project_id": "delta-af1e1",
+    "storage_bucket": "delta-af1e1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1055786684802:android:8a2e2589ff0e305e5dbf9b",
+        "android_client_info": {
+          "package_name": "com.example.myapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDjySi4Qxbi_gKsxb-fDduL85E5lqGiomQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

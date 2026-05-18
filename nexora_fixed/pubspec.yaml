@@ -1,0 +1,29 @@
+name: delta
+description: "Delta - O'quv platformasi"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  firebase_core: ^4.7.0
+  firebase_auth: ^6.4.0
+  cloud_firestore: ^6.3.0
+  shared_preferences: ^2.5.5
+  livekit_client: ^2.3.0
+  web_socket_channel: ^3.0.1
+  path_provider: ^2.0.15
+  uuid: ^4.5.1
+  http: ^1.2.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
