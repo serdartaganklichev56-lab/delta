@@ -5,7 +5,7 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 android {
-    namespace = "com.example.myapp"
+    namespace = "com.example.delta"
     compileSdk = 36
     ndkVersion = flutter.ndkVersion
     compileOptions {
@@ -16,7 +16,7 @@ android {
         jvmTarget = JavaVersion.VERSION_17.toString()
     }
     defaultConfig {
-        applicationId = "com.example.myapp"
+        applicationId = "com.example.delta"
         minSdk = flutter.minSdkVersion
         targetSdk = 36
         versionCode = flutter.versionCode
