@@ -5,6 +5,7 @@ import '../../models/room_model.dart';
 import '../../services/room_service.dart';
 import '../profile/profile_screen.dart';
 import '../guruh/guruh_ichida_screen.dart';
+import '../ceo/ceo_panel_screen.dart';
 import 'create_room_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -20,10 +21,13 @@ class _HomeScreenState extends State<HomeScreen> {
   final _roomService = RoomService();
   final _kodCtrl = TextEditingController();
 
+  // CEO uchun 3 ta tab, boshqalar uchun 2 ta
+  bool get _ceomi => widget.user.isCeo;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _currentIndex == 0 ? _buildHome() : ProfileScreen(user: widget.user),
+      body: _buildBody(),
       bottomNavigationBar: _buildNavBar(),
       floatingActionButton: _currentIndex == 0 && (widget.user.isDomla || widget.user.isCeo)
           ? FloatingActionButton(
@@ -33,6 +37,19 @@ class _HomeScreenState extends State<HomeScreen> {
             )
           : null,
     );
+  }
+
+  Widget _buildBody() {
+    if (_ceomi) {
+      // CEO: 0=Guruhlar, 1=Panel, 2=Profil
+      if (_currentIndex == 0) return _buildHome();
+      if (_currentIndex == 1) return CeoPanelScreen(user: widget.user);
+      return ProfileScreen(user: widget.user);
+    } else {
+      // Ustoz/Talaba: 0=Guruhlar, 1=Profil
+      if (_currentIndex == 0) return _buildHome();
+      return ProfileScreen(user: widget.user);
+    }
   }
 
   Widget _buildHome() {
@@ -152,13 +169,18 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildBosh() {
     return Center(
       child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Icon(Icons.groups_outlined, size: 64, color: AppColors.textHint.withValues(alpha: 0.5)),
+        Icon(Icons.groups_outlined,
+            size: 64, color: AppColors.textHint.withValues(alpha: 0.5)),
         const SizedBox(height: 12),
-        const Text('Guruhlar yo\'q', style: TextStyle(color: AppColors.textHint, fontSize: 16)),
+        const Text("Guruhlar yo'q",
+            style: TextStyle(color: AppColors.textHint, fontSize: 16)),
         const SizedBox(height: 8),
         Text(
-          widget.user.isTalaba ? 'Kod yozib guruhga kiring' : '+ tugmasini bosib guruh yarating',
-          style: TextStyle(color: AppColors.textHint.withValues(alpha: 0.6), fontSize: 13),
+          widget.user.isTalaba
+              ? 'Kod yozib guruhga kiring'
+              : '+ tugmasini bosib guruh yarating',
+          style: TextStyle(
+              color: AppColors.textHint.withValues(alpha: 0.6), fontSize: 13),
         ),
       ]),
     );
@@ -190,9 +212,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       fontWeight: FontWeight.w500)),
               const SizedBox(height: 4),
               Text(
-                '${room.azolar.length} a\'zo · ${menUstoz ? 'Ustoz' : 'Talaba'}',
+                "${room.azolar.length} a'zo · ${menUstoz ? 'Ustoz' : 'Talaba'}",
                 style: TextStyle(
-                    color: AppColors.textPrimary.withValues(alpha: 0.4), fontSize: 12),
+                    color: AppColors.textPrimary.withValues(alpha: 0.4),
+                    fontSize: 12),
               ),
             ]),
           ),
@@ -208,7 +231,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 SizedBox(width: 4),
                 Text('LIVE',
                     style: TextStyle(
-                        color: AppColors.red, fontSize: 10, fontWeight: FontWeight.bold)),
+                        color: AppColors.red,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold)),
               ]),
             ),
           const SizedBox(width: 8),
@@ -225,6 +250,38 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildNavBar() {
+    if (_ceomi) {
+      // CEO: 3 ta tab
+      return Container(
+        decoration: const BoxDecoration(
+            border: Border(top: BorderSide(color: AppColors.border))),
+        child: BottomNavigationBar(
+          currentIndex: _currentIndex,
+          onTap: (i) => setState(() => _currentIndex = i),
+          backgroundColor: AppColors.background,
+          selectedItemColor: AppColors.primary,
+          unselectedItemColor: AppColors.textHint,
+          selectedLabelStyle: const TextStyle(fontSize: 11),
+          unselectedLabelStyle: const TextStyle(fontSize: 11),
+          items: const [
+            BottomNavigationBarItem(
+                icon: Icon(Icons.groups_outlined),
+                activeIcon: Icon(Icons.groups),
+                label: 'Guruhlar'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.dashboard_outlined),
+                activeIcon: Icon(Icons.dashboard),
+                label: 'Panel'),
+            BottomNavigationBarItem(
+                icon: Icon(Icons.person_outline),
+                activeIcon: Icon(Icons.person),
+                label: 'Profil'),
+          ],
+        ),
+      );
+    }
+
+    // Ustoz / Talaba: 2 ta tab
     return Container(
       decoration: const BoxDecoration(
           border: Border(top: BorderSide(color: AppColors.border))),
@@ -257,7 +314,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     _kodCtrl.clear();
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(natija == 'ok' ? 'Guruhga qo\'shildingiz!' : natija),
+      content: Text(natija == 'ok' ? "Guruhga qo'shildingiz!" : natija),
       backgroundColor: natija == 'ok' ? AppColors.green : AppColors.red,
     ));
   }
