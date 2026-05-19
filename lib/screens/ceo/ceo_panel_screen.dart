@@ -18,7 +18,7 @@ class _CeoPanelScreenState extends State<CeoPanelScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
   }
 
   @override
@@ -43,10 +43,12 @@ class _CeoPanelScreenState extends State<CeoPanelScreen>
           indicatorColor: AppColors.primary,
           labelColor: AppColors.primary,
           unselectedLabelColor: AppColors.textHint,
+          isScrollable: true,
           labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
           tabs: const [
             Tab(icon: Icon(Icons.assignment_outlined, size: 18), text: 'Arizalar'),
-            Tab(icon: Icon(Icons.credit_card_outlined, size: 18), text: 'Tarif'),
+            Tab(icon: Icon(Icons.people_outline, size: 18), text: 'Foydalanuvchilar'),
+            Tab(icon: Icon(Icons.school_outlined, size: 18), text: 'Ustozlar'),
             Tab(icon: Icon(Icons.bar_chart_outlined, size: 18), text: 'Statistika'),
           ],
         ),
@@ -55,7 +57,8 @@ class _CeoPanelScreenState extends State<CeoPanelScreen>
         controller: _tabController,
         children: const [
           _ArizalarTab(),
-          _TarifTab(),
+          _FoydalanuvchilarTab(),
+          _UstozlarTab(),
           _StatistikTab(),
         ],
       ),
@@ -82,13 +85,7 @@ class _ArizalarTab extends StatelessWidget {
         }
         final docs = snap.data?.docs ?? [];
         if (docs.isEmpty) {
-          return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(Icons.assignment_outlined, size: 56,
-                color: AppColors.textHint.withValues(alpha: 0.4)),
-            const SizedBox(height: 12),
-            const Text("Arizalar yo'q",
-                style: TextStyle(color: AppColors.textHint, fontSize: 15)),
-          ]));
+          return _bosh(Icons.assignment_outlined, "Arizalar yo'q");
         }
         return ListView.builder(
           padding: const EdgeInsets.all(16),
@@ -109,29 +106,15 @@ class _ArizaCard extends StatelessWidget {
     final data = doc.data() as Map<String, dynamic>;
     final holat = data['holat'] as String? ?? 'kutilmoqda';
     final uid = data['uid'] as String? ?? '';
+    Color hRangi = Colors.orange;
+    String hText = 'Kutilmoqda';
+    if (holat == 'tasdiqlangan') { hRangi = AppColors.green; hText = 'Tasdiqlangan'; }
+    if (holat == 'rad') { hRangi = AppColors.red; hText = 'Rad'; }
 
-    Color holatRangi = Colors.orange;
-    String holatText = 'Kutilmoqda';
-    if (holat == 'tasdiqlangan') { holatRangi = AppColors.green; holatText = 'Tasdiqlangan'; }
-    if (holat == 'rad') { holatRangi = AppColors.red; holatText = 'Rad etilgan'; }
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceLight,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
-      ),
+    return _karta(
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          CircleAvatar(
-            radius: 20,
-            backgroundColor: AppColors.primaryDark,
-            child: Text((data['ism'] as String? ?? 'U')[0].toUpperCase(),
-                style: const TextStyle(color: AppColors.primaryLight,
-                    fontWeight: FontWeight.bold)),
-          ),
+          _avatar((data['ism'] as String? ?? 'U')[0]),
           const SizedBox(width: 10),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('${data['ism'] ?? ''} ${data['familya'] ?? ''}',
@@ -141,255 +124,331 @@ class _ArizaCard extends StatelessWidget {
                 style: TextStyle(color: AppColors.textPrimary.withValues(alpha: 0.5),
                     fontSize: 12)),
           ])),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: holatRangi.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(holatText, style: TextStyle(color: holatRangi,
-                fontSize: 11, fontWeight: FontWeight.w600)),
-          ),
+          _holatChip(hText, hRangi),
         ]),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         _infoRow(Icons.school_outlined, 'Fan', data['fan'] ?? '-'),
         _infoRow(Icons.work_outline, 'Mutaxassislik', data['mutaxassislik'] ?? '-'),
         if (holat == 'kutilmoqda') ...[
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Row(children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                icon: const Icon(Icons.close, size: 16),
-                label: const Text('Rad', style: TextStyle(fontSize: 13)),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.red,
+            Expanded(child: OutlinedButton(
+              style: OutlinedButton.styleFrom(foregroundColor: AppColors.red,
                   side: BorderSide(color: AppColors.red.withValues(alpha: 0.5)),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                onPressed: () => _holat(doc.id, 'rad', uid, context),
-              ),
-            ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+              onPressed: () => _holat(doc.id, 'rad', uid, context),
+              child: const Text('Rad'),
+            )),
             const SizedBox(width: 10),
-            Expanded(
-              child: ElevatedButton.icon(
-                icon: const Icon(Icons.check, size: 16),
-                label: const Text('Tasdiqlash', style: TextStyle(fontSize: 13)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.green,
+            Expanded(child: ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.green,
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                onPressed: () => _holat(doc.id, 'tasdiqlangan', uid, context),
-              ),
-            ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+              onPressed: () => _holat(doc.id, 'tasdiqlangan', uid, context),
+              child: const Text('Tasdiqlash'),
+            )),
           ]),
         ],
       ]),
     );
   }
 
-  Widget _infoRow(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(children: [
-        Icon(icon, size: 14, color: AppColors.textHint),
-        const SizedBox(width: 6),
-        Text('$label: ', style: TextStyle(
-            color: AppColors.textPrimary.withValues(alpha: 0.5), fontSize: 12)),
-        Flexible(child: Text(value,
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 12))),
-      ]),
-    );
-  }
-
-  Future<void> _holat(String arizaId, String holat,
-      String uid, BuildContext context) async {
+  Future<void> _holat(String id, String holat, String uid, BuildContext ctx) async {
     final batch = FirebaseFirestore.instance.batch();
-    batch.update(FirebaseFirestore.instance
-        .collection('ustoz_arizalar').doc(arizaId), {'holat': holat});
+    batch.update(FirebaseFirestore.instance.collection('ustoz_arizalar').doc(id),
+        {'holat': holat});
     if (holat == 'tasdiqlangan' && uid.isNotEmpty) {
-      batch.update(FirebaseFirestore.instance
-          .collection('users').doc(uid), {'role': 'domla', 'rol': 'domla'});
+      batch.update(FirebaseFirestore.instance.collection('users').doc(uid),
+          {'role': 'domla', 'rol': 'domla'});
     }
     await batch.commit();
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(holat == 'tasdiqlangan'
-            ? 'Tasdiqlandi — ustoz tayinlandi' : 'Rad etildi'),
-        backgroundColor: holat == 'tasdiqlangan' ? AppColors.green : AppColors.red,
-      ));
-    }
+    if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+        content: Text(holat == 'tasdiqlangan' ? 'Ustoz tayinlandi' : 'Rad etildi'),
+        backgroundColor: holat == 'tasdiqlangan' ? AppColors.green : AppColors.red));
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TAB 2: Tarif
+// TAB 2: Foydalanuvchilar — rol berish
 // ─────────────────────────────────────────────────────────────────────────────
-class _TarifTab extends StatelessWidget {
-  const _TarifTab();
+class _FoydalanuvchilarTab extends StatelessWidget {
+  const _FoydalanuvchilarTab();
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
-          .collection('tarif_sorovlar')
-          .orderBy('vaqt', descending: true)
+          .collection('users')
+          .orderBy('created_at', descending: true)
           .snapshots(),
       builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
         final docs = snap.data?.docs ?? [];
-        if (docs.isEmpty) {
-          return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(Icons.credit_card_outlined, size: 56,
-                color: AppColors.textHint.withValues(alpha: 0.4)),
-            const SizedBox(height: 12),
-            const Text("Tarif so'rovlari yo'q",
-                style: TextStyle(color: AppColors.textHint, fontSize: 15)),
-          ]));
-        }
+        if (docs.isEmpty) return _bosh(Icons.people_outline, "Foydalanuvchilar yo'q");
         return ListView.builder(
           padding: const EdgeInsets.all(16),
           itemCount: docs.length,
-          itemBuilder: (_, i) => _TarifCard(doc: docs[i]),
+          itemBuilder: (_, i) {
+            final data = docs[i].data() as Map<String, dynamic>;
+            final uid = docs[i].id;
+            final ism = '${data['name'] ?? ''} ${data['familya'] ?? ''}'.trim();
+            final rol = data['role'] as String? ?? 'talaba';
+            return _karta(
+              child: Row(children: [
+                _avatar(ism.isNotEmpty ? ism[0] : 'U'),
+                const SizedBox(width: 12),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(ism.isEmpty ? 'Foydalanuvchi' : ism,
+                      style: const TextStyle(color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w600, fontSize: 14)),
+                  Text(data['email'] ?? '',
+                      style: TextStyle(color: AppColors.textPrimary.withValues(alpha: 0.5),
+                          fontSize: 12)),
+                ])),
+                // Rol tugmasi
+                GestureDetector(
+                  onTap: () => _rolDialog(context, uid, rol, ism),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: _rolRangi(rol).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: _rolRangi(rol).withValues(alpha: 0.4)),
+                    ),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Text(_rolNomi(rol),
+                          style: TextStyle(color: _rolRangi(rol),
+                              fontSize: 12, fontWeight: FontWeight.w600)),
+                      const SizedBox(width: 4),
+                      Icon(Icons.arrow_drop_down, color: _rolRangi(rol), size: 16),
+                    ]),
+                  ),
+                ),
+              ]),
+            );
+          },
         );
       },
     );
   }
-}
 
-class _TarifCard extends StatelessWidget {
-  final QueryDocumentSnapshot doc;
-  const _TarifCard({required this.doc});
-
-  String _narx(String? d, int? i) {
-    final n = UserModel.tarifNarxi(d ?? '', i ?? 0);
-    return n == 0 ? '-' : "${(n / 1000).toStringAsFixed(0)} 000 so'm";
+  Color _rolRangi(String rol) {
+    if (rol == 'domla') return AppColors.primary;
+    if (rol == 'ceo') return Colors.orange;
+    return AppColors.textHint;
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final data = doc.data() as Map<String, dynamic>;
-    final holat = data['holat'] as String? ?? 'kutilmoqda';
-    final uid = data['uid'] as String? ?? '';
-    final daqiqa = data['tarifDaqiqa'] as String?;
-    final ishtirokchi = data['tarifIshtirokchi'] as int?;
+  String _rolNomi(String rol) {
+    if (rol == 'domla') return 'Ustoz';
+    if (rol == 'ceo') return 'CEO';
+    return 'Talaba';
+  }
 
-    Color holatRangi = Colors.orange;
-    String holatText = 'Kutilmoqda';
-    if (holat == 'tasdiqlangan') { holatRangi = AppColors.green; holatText = 'Tasdiqlangan'; }
-    if (holat == 'rad') { holatRangi = AppColors.red; holatText = 'Rad etilgan'; }
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceLight,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(data['ustozName'] ?? 'Ustoz',
-                style: const TextStyle(color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w600, fontSize: 14)),
-            Text(data['phone'] ?? '',
-                style: TextStyle(color: AppColors.textPrimary.withValues(alpha: 0.5),
-                    fontSize: 12)),
-          ])),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: holatRangi.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(holatText, style: TextStyle(color: holatRangi,
-                fontSize: 11, fontWeight: FontWeight.w600)),
-          ),
+  Future<void> _rolDialog(BuildContext ctx, String uid, String joriyRol, String ism) async {
+    final yangiRol = await showDialog<String>(
+      context: ctx,
+      builder: (_) => AlertDialog(
+        title: Text('$ism — rol berish'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          _rolOption(ctx, 'talaba', 'Talaba', joriyRol),
+          _rolOption(ctx, 'domla', 'Ustoz', joriyRol),
+          _rolOption(ctx, 'ceo', 'CEO', joriyRol),
         ]),
-        const Divider(height: 16),
-        Wrap(spacing: 8, children: [
-          _chip(Icons.timer_outlined, '$daqiqa min'),
-          _chip(Icons.people_outline, '$ishtirokchi kishi'),
-          _chip(Icons.attach_money, _narx(daqiqa, ishtirokchi)),
-        ]),
-        if (holat == 'kutilmoqda') ...[
-          const SizedBox(height: 12),
-          Row(children: [
-            Expanded(
-              child: OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.red,
-                  side: BorderSide(color: AppColors.red.withValues(alpha: 0.5)),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                onPressed: () => _tasdiqlash(doc.id, 'rad', uid, null, null, context),
-                child: const Text('Rad'),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.green,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                onPressed: () => _tasdiqlash(
-                    doc.id, 'tasdiqlangan', uid, daqiqa, ishtirokchi, context),
-                child: const Text('Tasdiqlash'),
-              ),
-            ),
-          ]),
-        ],
-      ]),
-    );
-  }
-
-  Widget _chip(IconData icon, String text) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: AppColors.primaryDark.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(8),
       ),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 12, color: AppColors.primary),
-        const SizedBox(width: 4),
-        Text(text, style: const TextStyle(color: AppColors.primary,
-            fontSize: 11, fontWeight: FontWeight.w500)),
-      ]),
     );
+    if (yangiRol == null || yangiRol == joriyRol) return;
+    await FirebaseFirestore.instance.collection('users').doc(uid).update({
+      'role': yangiRol, 'rol': yangiRol,
+    });
+    if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+        content: Text('Rol o\'zgartirildi: $yangiRol'),
+        backgroundColor: AppColors.green));
   }
 
-  Future<void> _tasdiqlash(String sorovId, String holat, String uid,
-      String? daqiqa, int? ishtirokchi, BuildContext context) async {
-    final batch = FirebaseFirestore.instance.batch();
-    batch.update(FirebaseFirestore.instance
-        .collection('tarif_sorovlar').doc(sorovId), {'holat': holat});
-    if (holat == 'tasdiqlangan' && uid.isNotEmpty) {
-      final limit = int.tryParse(daqiqa ?? '0') ?? 0;
-      batch.update(FirebaseFirestore.instance.collection('users').doc(uid), {
-        'tarifDaqiqa': daqiqa,
-        'tarifIshtirokchi': ishtirokchi,
-        'minutesLeft': limit,
-      });
-    }
-    await batch.commit();
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(holat == 'tasdiqlangan'
-            ? 'Tarif aktivlashtirildi' : 'Rad etildi'),
-        backgroundColor: holat == 'tasdiqlangan' ? AppColors.green : AppColors.red,
-      ));
-    }
+  Widget _rolOption(BuildContext ctx, String value, String label, String joriy) {
+    return ListTile(
+      leading: Icon(
+        joriy == value ? Icons.radio_button_checked : Icons.radio_button_off,
+        color: joriy == value ? AppColors.primary : AppColors.textHint,
+      ),
+      title: Text(label, style: const TextStyle(color: AppColors.textPrimary)),
+      onTap: () => Navigator.pop(ctx, value),
+    );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TAB 3: Statistika — ichki 3 ta menyu
+// TAB 3: Ustozlar — tarif qo'shish
+// ─────────────────────────────────────────────────────────────────────────────
+class _UstozlarTab extends StatelessWidget {
+  const _UstozlarTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .where('role', isEqualTo: 'domla')
+          .snapshots(),
+      builder: (context, snap) {
+        final docs = snap.data?.docs ?? [];
+        if (docs.isEmpty) return _bosh(Icons.school_outlined, "Ustozlar yo'q");
+        return ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: docs.length,
+          itemBuilder: (_, i) {
+            final data = docs[i].data() as Map<String, dynamic>;
+            final uid = docs[i].id;
+            final ism = '${data['name'] ?? ''} ${data['familya'] ?? ''}'.trim();
+            final daqiqa = data['tarifDaqiqa'] as String?;
+            final qolgan = data['minutesLeft'] as int? ?? 0;
+            final tt = data['tarifTugash'] as int?;
+            final tugash = tt != null ? DateTime.fromMillisecondsSinceEpoch(tt) : null;
+            final faol = tugash != null && tugash.isAfter(DateTime.now());
+            final qolganKun = tugash != null
+                ? tugash.difference(DateTime.now()).inDays
+                : 0;
+
+            return GestureDetector(
+              onTap: () => _tarifDialog(context, uid, ism),
+              child: _karta(
+                child: Row(children: [
+                  _avatar(ism.isNotEmpty ? ism[0] : 'U'),
+                  const SizedBox(width: 12),
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(ism.isEmpty ? 'Ustoz' : ism,
+                        style: const TextStyle(color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w600, fontSize: 14)),
+                    Text(daqiqa != null ? '$daqiqa min · $qolgan qoldi' : 'Tarifsiz',
+                        style: TextStyle(color: AppColors.textPrimary.withValues(alpha: 0.5),
+                            fontSize: 12)),
+                  ])),
+                  Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                    if (faol)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.green.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text('$qolganKun kun',
+                            style: const TextStyle(color: AppColors.green,
+                                fontSize: 11, fontWeight: FontWeight.w600)),
+                      )
+                    else
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.red.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text('TarifSiz',
+                            style: TextStyle(color: AppColors.red, fontSize: 11)),
+                      ),
+                    const SizedBox(height: 4),
+                    const Icon(Icons.add_circle_outline,
+                        color: AppColors.primary, size: 18),
+                  ]),
+                ]),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _tarifDialog(BuildContext ctx, String uid, String ism) async {
+    String tanlangan = '1500';
+    await showDialog(
+      context: ctx,
+      builder: (_) => StatefulBuilder(
+        builder: (ctx2, setS) => AlertDialog(
+          title: Text('$ism — tarif qo\'shish'),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            // 3 ta tarif
+            ...['1500', '3000', '6000'].map((d) {
+              final narx = UserModel.tarifNarxi(d, 60);
+              final active = tanlangan == d;
+              return GestureDetector(
+                onTap: () => setS(() => tanlangan = d),
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: active
+                        ? AppColors.primary.withValues(alpha: 0.1)
+                        : AppColors.surfaceLight,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: active ? AppColors.primary : AppColors.border,
+                      width: active ? 2 : 1,
+                    ),
+                  ),
+                  child: Row(children: [
+                    Icon(active ? Icons.radio_button_checked : Icons.radio_button_off,
+                        color: active ? AppColors.primary : AppColors.textHint,
+                        size: 18),
+                    const SizedBox(width: 10),
+                    Expanded(child: Text('$d daqiqa · 60 kishi',
+                        style: TextStyle(
+                            color: active ? AppColors.primary : AppColors.textPrimary,
+                            fontWeight: FontWeight.w500))),
+                    Text('${narx ~/ 1000}K so\'m',
+                        style: TextStyle(
+                            color: active ? AppColors.primary : AppColors.textHint,
+                            fontWeight: FontWeight.bold)),
+                  ]),
+                ),
+              );
+            }),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.primaryDark.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Row(children: [
+                Icon(Icons.info_outline, size: 14, color: AppColors.primary),
+                SizedBox(width: 6),
+                Text('30 kun faol bo\'ladi',
+                    style: TextStyle(color: AppColors.primary, fontSize: 12)),
+              ]),
+            ),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx2),
+                child: const Text('Bekor')),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(ctx2);
+                await _tarifQosh(ctx, uid, tanlangan);
+              },
+              child: const Text('Qo\'shish'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _tarifQosh(BuildContext ctx, String uid, String daqiqa) async {
+    final limit = int.tryParse(daqiqa) ?? 0;
+    final tugash = DateTime.now().add(const Duration(days: 30));
+    await FirebaseFirestore.instance.collection('users').doc(uid).update({
+      'tarifDaqiqa': daqiqa,
+      'tarifIshtirokchi': 60,
+      'minutesLeft': limit,
+      'tarifTugash': tugash.millisecondsSinceEpoch,
+    });
+    if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+        content: Text('Tarif qo\'shildi — 30 kun faol'),
+        backgroundColor: AppColors.green));
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TAB 4: Statistika
 // ─────────────────────────────────────────────────────────────────────────────
 class _StatistikTab extends StatefulWidget {
   const _StatistikTab();
@@ -404,7 +463,6 @@ class _StatistikTabState extends State<_StatistikTab> {
   @override
   Widget build(BuildContext context) {
     return Column(children: [
-      // Ichki menyu
       Container(
         margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
         decoration: BoxDecoration(
@@ -419,7 +477,7 @@ class _StatistikTabState extends State<_StatistikTab> {
         ]),
       ),
       const SizedBox(height: 12),
-      Expanded(child: _buildMenyuSahifa()),
+      Expanded(child: _buildSahifa()),
     ]);
   }
 
@@ -439,8 +497,7 @@ class _StatistikTabState extends State<_StatistikTab> {
             Icon(icon, size: 16,
                 color: active ? Colors.white : AppColors.textHint),
             const SizedBox(height: 3),
-            Text(label, style: TextStyle(
-                fontSize: 11,
+            Text(label, style: TextStyle(fontSize: 11,
                 fontWeight: active ? FontWeight.w600 : FontWeight.normal,
                 color: active ? Colors.white : AppColors.textHint)),
           ]),
@@ -449,17 +506,16 @@ class _StatistikTabState extends State<_StatistikTab> {
     );
   }
 
-  Widget _buildMenyuSahifa() {
+  Widget _buildSahifa() {
     switch (_menuIndex) {
       case 0: return const _DaromadSahifa();
       case 1: return const _StreamSahifa();
-      case 2: return const _UstozlarSahifa();
+      case 2: return const _UstozStatSahifa();
       default: return const SizedBox();
     }
   }
 }
 
-// ── Daromad ──────────────────────────────────────────────────────────────────
 class _DaromadSahifa extends StatelessWidget {
   const _DaromadSahifa();
 
@@ -486,7 +542,6 @@ class _DaromadSahifa extends StatelessWidget {
         int jami = 0, buoy = 0;
         final now = DateTime.now();
         final oyliklar = <Map<String, dynamic>>[];
-
         for (final doc in docs) {
           final data = doc.data() as Map<String, dynamic>;
           final narx = UserModel.tarifNarxi(
@@ -502,45 +557,35 @@ class _DaromadSahifa extends StatelessWidget {
             }
           }
         }
-
         return SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            // Katta raqamlar
+          child: Column(children: [
             Row(children: [
               Expanded(child: _bigCard("Jami daromad",
-                  "${_fmt(jami)} so'm", AppColors.primary, Icons.account_balance_wallet_outlined)),
-              const SizedBox(width: 12),
+                  "${_fmt(jami)} so'm", AppColors.primary,
+                  Icons.account_balance_wallet_outlined)),
+              const SizedBox(width: 10),
               Expanded(child: _bigCard("Bu oy",
-                  "${_fmt(buoy)} so'm", AppColors.green, Icons.trending_up)),
+                  "${_fmt(buoy)} so'm", AppColors.green,
+                  Icons.trending_up)),
             ]),
-            const SizedBox(height: 16),
-            _bigCard("Tasdiqlangan tariflar",
-                "${docs.length} ta to'lov", Colors.orange, Icons.receipt_outlined),
-            const SizedBox(height: 20),
-            // Bu oygi to'lovlar ro'yxati
+            const SizedBox(height: 10),
+            _bigCard("Tariflar soni", "${docs.length} ta",
+                Colors.orange, Icons.receipt_outlined),
             if (oyliklar.isNotEmpty) ...[
-              const Text("Bu oygi to'lovlar",
-                  style: TextStyle(color: AppColors.textPrimary,
-                      fontWeight: FontWeight.bold, fontSize: 14)),
-              const SizedBox(height: 10),
-              ...oyliklar.map((d) => Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceLight,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Row(children: [
-                  Expanded(child: Text(d['ustozName'] ?? 'Ustoz',
-                      style: const TextStyle(color: AppColors.textPrimary,
-                          fontSize: 13))),
-                  Text("${_fmt(d['_narx'] as int)} so'm",
-                      style: const TextStyle(color: AppColors.green,
-                          fontWeight: FontWeight.w600, fontSize: 13)),
-                ]),
-              )),
+              const SizedBox(height: 16),
+              const Align(alignment: Alignment.centerLeft,
+                child: Text("Bu oygi to'lovlar",
+                    style: TextStyle(color: AppColors.textPrimary,
+                        fontWeight: FontWeight.bold, fontSize: 14))),
+              const SizedBox(height: 8),
+              ...oyliklar.map((d) => _karta(child: Row(children: [
+                Expanded(child: Text(d['ustozName'] ?? 'Ustoz',
+                    style: const TextStyle(color: AppColors.textPrimary))),
+                Text("${_fmt(d['_narx'] as int)} so'm",
+                    style: const TextStyle(color: AppColors.green,
+                        fontWeight: FontWeight.w600)),
+              ]))),
             ],
           ]),
         );
@@ -577,7 +622,6 @@ class _DaromadSahifa extends StatelessWidget {
   }
 }
 
-// ── Stream statistika ─────────────────────────────────────────────────────────
 class _StreamSahifa extends StatelessWidget {
   const _StreamSahifa();
 
@@ -585,9 +629,7 @@ class _StreamSahifa extends StatelessWidget {
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
-          .collection('users')
-          .where('role', isEqualTo: 'domla')
-          .snapshots(),
+          .collection('users').where('role', isEqualTo: 'domla').snapshots(),
       builder: (context, snap) {
         final docs = snap.data?.docs ?? [];
         int jamiIshlatilgan = 0;
@@ -597,43 +639,30 @@ class _StreamSahifa extends StatelessWidget {
           final qolgan = data['minutesLeft'] as int? ?? 0;
           jamiIshlatilgan += (limit - qolgan).clamp(0, limit);
         }
-
         return SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
-              ),
-              child: Row(children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.videocam_outlined,
-                      size: 18, color: AppColors.primary),
+          child: Column(children: [
+            _karta(child: Row(children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                const SizedBox(width: 10),
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Jami stream daqiqalari',
-                      style: TextStyle(color: AppColors.textPrimary.withValues(alpha: 0.5),
-                          fontSize: 11)),
-                  Text('$jamiIshlatilgan daqiqa',
-                      style: const TextStyle(color: AppColors.primary,
-                          fontWeight: FontWeight.bold, fontSize: 16)),
-                ]),
+                child: const Icon(Icons.videocam_outlined,
+                    color: AppColors.primary, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Jami stream',
+                    style: TextStyle(color: AppColors.textPrimary.withValues(alpha: 0.5),
+                        fontSize: 11)),
+                Text('$jamiIshlatilgan daqiqa',
+                    style: const TextStyle(color: AppColors.primary,
+                        fontWeight: FontWeight.bold, fontSize: 18)),
               ]),
-            ),
-            const SizedBox(height: 20),
-            const Text('Ustozlar bo\'yicha',
-                style: TextStyle(color: AppColors.textPrimary,
-                    fontWeight: FontWeight.bold, fontSize: 14)),
-            const SizedBox(height: 10),
+            ])),
+            const SizedBox(height: 12),
             ...docs.map((doc) {
               final data = doc.data() as Map<String, dynamic>;
               final ism = '${data['name'] ?? ''} ${data['familya'] ?? ''}'.trim();
@@ -641,36 +670,27 @@ class _StreamSahifa extends StatelessWidget {
               final qolgan = data['minutesLeft'] as int? ?? 0;
               final ishlatilgan = (limit - qolgan).clamp(0, limit);
               final foiz = limit > 0 ? (ishlatilgan / limit).clamp(0.0, 1.0) : 0.0;
-              return Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceLight,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    Expanded(child: Text(ism.isEmpty ? 'Ustoz' : ism,
-                        style: const TextStyle(color: AppColors.textPrimary,
-                            fontSize: 13, fontWeight: FontWeight.w500))),
-                    Text('$ishlatilgan / $limit min',
-                        style: TextStyle(color: AppColors.textPrimary.withValues(alpha: 0.5),
-                            fontSize: 11)),
-                  ]),
-                  const SizedBox(height: 6),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: foiz,
-                      backgroundColor: AppColors.border,
-                      valueColor: AlwaysStoppedAnimation(
-                          foiz > 0.8 ? AppColors.red : AppColors.primary),
-                      minHeight: 6,
-                    ),
-                  ),
+              return _karta(child: Column(children: [
+                Row(children: [
+                  Expanded(child: Text(ism.isEmpty ? 'Ustoz' : ism,
+                      style: const TextStyle(color: AppColors.textPrimary,
+                          fontSize: 13, fontWeight: FontWeight.w500))),
+                  Text('$ishlatilgan / $limit min',
+                      style: TextStyle(color: AppColors.textPrimary.withValues(alpha: 0.5),
+                          fontSize: 11)),
                 ]),
-              );
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: foiz,
+                    backgroundColor: AppColors.border,
+                    valueColor: AlwaysStoppedAnimation(
+                        foiz > 0.8 ? AppColors.red : AppColors.primary),
+                    minHeight: 6,
+                  ),
+                ),
+              ]));
             }),
           ]),
         );
@@ -679,28 +699,17 @@ class _StreamSahifa extends StatelessWidget {
   }
 }
 
-// ── Ustozlar ro'yxati — bossa detail ─────────────────────────────────────────
-class _UstozlarSahifa extends StatelessWidget {
-  const _UstozlarSahifa();
+class _UstozStatSahifa extends StatelessWidget {
+  const _UstozStatSahifa();
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
-          .collection('users')
-          .where('role', isEqualTo: 'domla')
-          .snapshots(),
+          .collection('users').where('role', isEqualTo: 'domla').snapshots(),
       builder: (context, snap) {
         final docs = snap.data?.docs ?? [];
-        if (docs.isEmpty) {
-          return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(Icons.people_outline, size: 56,
-                color: AppColors.textHint.withValues(alpha: 0.4)),
-            const SizedBox(height: 12),
-            const Text("Ustozlar yo'q",
-                style: TextStyle(color: AppColors.textHint, fontSize: 15)),
-          ]));
-        }
+        if (docs.isEmpty) return _bosh(Icons.people_outline, "Ustozlar yo'q");
         return ListView.builder(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           itemCount: docs.length,
@@ -708,45 +717,23 @@ class _UstozlarSahifa extends StatelessWidget {
             final data = docs[i].data() as Map<String, dynamic>;
             final uid = docs[i].id;
             final ism = '${data['name'] ?? ''} ${data['familya'] ?? ''}'.trim();
-            final limit = int.tryParse(data['tarifDaqiqa'] ?? '0') ?? 0;
-            final qolgan = data['minutesLeft'] as int? ?? 0;
-            final ishlatilgan = (limit - qolgan).clamp(0, limit);
-
             return GestureDetector(
               onTap: () => Navigator.push(context, MaterialPageRoute(
                   builder: (_) => _UstozDetailScreen(
-                      uid: uid, ism: ism.isEmpty ? 'Ustoz' : ism,
-                      data: data))),
-              child: Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceLight,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Row(children: [
-                  CircleAvatar(
-                    radius: 22,
-                    backgroundColor: AppColors.primaryDark,
-                    child: Text(
-                      (ism.isNotEmpty ? ism[0] : 'U').toUpperCase(),
-                      style: const TextStyle(color: AppColors.primaryLight,
-                          fontWeight: FontWeight.bold, fontSize: 16),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(ism.isEmpty ? 'Ustoz' : ism,
-                        style: const TextStyle(color: AppColors.textPrimary,
-                            fontWeight: FontWeight.w600, fontSize: 14)),
-                    Text('$ishlatilgan / $limit min ishlatilgan',
-                        style: TextStyle(color: AppColors.textPrimary.withValues(alpha: 0.5),
-                            fontSize: 12)),
-                  ])),
-                  const Icon(Icons.chevron_right, color: AppColors.textHint, size: 20),
-                ]),
-              ),
+                      uid: uid, ism: ism.isEmpty ? 'Ustoz' : ism, data: data))),
+              child: _karta(child: Row(children: [
+                _avatar(ism.isNotEmpty ? ism[0] : 'U'),
+                const SizedBox(width: 12),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(ism.isEmpty ? 'Ustoz' : ism,
+                      style: const TextStyle(color: AppColors.textPrimary,
+                          fontWeight: FontWeight.w600, fontSize: 14)),
+                  Text(data['email'] ?? '',
+                      style: TextStyle(color: AppColors.textPrimary.withValues(alpha: 0.5),
+                          fontSize: 12)),
+                ])),
+                const Icon(Icons.chevron_right, color: AppColors.textHint),
+              ])),
             );
           },
         );
@@ -755,13 +742,11 @@ class _UstozlarSahifa extends StatelessWidget {
   }
 }
 
-// ── Ustoz detail sahifasi ─────────────────────────────────────────────────────
 class _UstozDetailScreen extends StatelessWidget {
   final String uid;
   final String ism;
   final Map<String, dynamic> data;
-  const _UstozDetailScreen(
-      {required this.uid, required this.ism, required this.data});
+  const _UstozDetailScreen({required this.uid, required this.ism, required this.data});
 
   @override
   Widget build(BuildContext context) {
@@ -770,6 +755,11 @@ class _UstozDetailScreen extends StatelessWidget {
     final extra = data['extraMinutes'] as int? ?? 0;
     final ishlatilgan = (limit - qolgan).clamp(0, limit);
     final foiz = limit > 0 ? (ishlatilgan / limit).clamp(0.0, 1.0) : 0.0;
+    final tt = data['tarifTugash'] as int?;
+    final tugash = tt != null ? DateTime.fromMillisecondsSinceEpoch(tt) : null;
+    final qolganKun = tugash != null
+        ? tugash.difference(DateTime.now()).inDays
+        : 0;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -778,68 +768,46 @@ class _UstozDetailScreen extends StatelessWidget {
         foregroundColor: AppColors.textPrimary,
         elevation: 0,
         title: Text(ism, style: const TextStyle(color: AppColors.textPrimary,
-            fontWeight: FontWeight.bold, fontSize: 16)),
+            fontWeight: FontWeight.bold)),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          // Ustoz ma'lumotlari
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceLight,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Column(children: [
-              _infoRow(Icons.phone_outlined, 'Telefon', data['phone'] ?? '-'),
-              _infoRow(Icons.email_outlined, 'Email', data['email'] ?? '-'),
-              _infoRow(Icons.timer_outlined, 'Tarif',
-                  limit > 0 ? '$limit daqiqa / ${data['tarifIshtirokchi']} kishi' : 'TarifSiz'),
-            ]),
-          ),
+          _karta(child: Column(children: [
+            _infoRow(Icons.phone_outlined, 'Telefon', data['phone'] ?? '-'),
+            _infoRow(Icons.email_outlined, 'Email', data['email'] ?? '-'),
+            _infoRow(Icons.timer_outlined, 'Tarif',
+                limit > 0 ? '$limit daqiqa' : 'Tarifsiz'),
+            if (tugash != null)
+              _infoRow(Icons.calendar_today_outlined, 'Tugash',
+                  '$qolganKun kun qoldi'),
+          ])),
           const SizedBox(height: 16),
-
-          // Stream statistika
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceLight,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Text('Stream statistika',
-                  style: TextStyle(color: AppColors.textPrimary,
-                      fontWeight: FontWeight.bold, fontSize: 14)),
-              const SizedBox(height: 14),
-              Row(children: [
-                Expanded(child: _statMini('Ishlatilgan', '$ishlatilgan min', AppColors.primary)),
-                const SizedBox(width: 10),
-                Expanded(child: _statMini("Qolgan", '$qolgan min', AppColors.green)),
-                const SizedBox(width: 10),
-                Expanded(child: _statMini("Qo'shimcha", '$extra min', Colors.orange)),
-              ]),
-              const SizedBox(height: 12),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: LinearProgressIndicator(
-                  value: foiz,
-                  backgroundColor: AppColors.border,
-                  valueColor: AlwaysStoppedAnimation(
-                      foiz > 0.8 ? AppColors.red : AppColors.primary),
-                  minHeight: 8,
-                ),
+          _karta(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Stream statistika',
+                style: TextStyle(color: AppColors.textPrimary,
+                    fontWeight: FontWeight.bold, fontSize: 14)),
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(child: _statMini('Ishlatilgan', '$ishlatilgan min', AppColors.primary)),
+              const SizedBox(width: 8),
+              Expanded(child: _statMini('Qolgan', '$qolgan min', AppColors.green)),
+              const SizedBox(width: 8),
+              Expanded(child: _statMini("Qo'shimcha", '$extra min', Colors.orange)),
+            ]),
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                value: foiz,
+                backgroundColor: AppColors.border,
+                valueColor: AlwaysStoppedAnimation(
+                    foiz > 0.8 ? AppColors.red : AppColors.primary),
+                minHeight: 8,
               ),
-              const SizedBox(height: 6),
-              Text('${(foiz * 100).toStringAsFixed(0)}% ishlatilgan',
-                  style: TextStyle(color: AppColors.textPrimary.withValues(alpha: 0.5),
-                      fontSize: 11)),
-            ]),
-          ),
+            ),
+          ])),
           const SizedBox(height: 16),
-
-          // Guruhlar
           const Text("Guruhlar",
               style: TextStyle(color: AppColors.textPrimary,
                   fontWeight: FontWeight.bold, fontSize: 14)),
@@ -852,94 +820,120 @@ class _UstozDetailScreen extends StatelessWidget {
             builder: (context, snap) {
               final guruhlar = snap.data?.docs ?? [];
               if (guruhlar.isEmpty) {
-                return Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: AppColors.surfaceLight,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.border),
-                  ),
-                  child: const Center(
+                return _karta(child: const Center(
                     child: Text("Guruhlar yo'q",
-                        style: TextStyle(color: AppColors.textHint, fontSize: 13)),
-                  ),
-                );
+                        style: TextStyle(color: AppColors.textHint))));
               }
-              return Column(
-                children: guruhlar.map((doc) {
-                  final g = doc.data() as Map<String, dynamic>;
-                  final azolar = (g['azolar'] as List? ?? []).length;
-                  final streamFaol = g['streamFaol'] as bool? ?? false;
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceLight,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: AppColors.border),
+              return Column(children: guruhlar.map((doc) {
+                final g = doc.data() as Map<String, dynamic>;
+                final azolar = (g['azolar'] as List? ?? []).length;
+                final live = g['streamFaol'] as bool? ?? false;
+                return _karta(child: Row(children: [
+                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text(g['nom'] ?? g['name'] ?? 'Guruh',
+                        style: const TextStyle(color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w500)),
+                    Text("$azolar a'zo",
+                        style: TextStyle(color: AppColors.textPrimary.withValues(alpha: 0.5),
+                            fontSize: 12)),
+                  ])),
+                  if (live)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.red.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.circle, color: AppColors.red, size: 8),
+                        SizedBox(width: 4),
+                        Text('LIVE', style: TextStyle(color: AppColors.red,
+                            fontSize: 10, fontWeight: FontWeight.bold)),
+                      ]),
                     ),
-                    child: Row(children: [
-                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(g['nom'] ?? g['name'] ?? 'Guruh',
-                            style: const TextStyle(color: AppColors.textPrimary,
-                                fontWeight: FontWeight.w500, fontSize: 13)),
-                        Text("$azolar a'zo",
-                            style: TextStyle(color: AppColors.textPrimary.withValues(alpha: 0.5),
-                                fontSize: 11)),
-                      ])),
-                      if (streamFaol)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: AppColors.red.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                            Icon(Icons.circle, color: AppColors.red, size: 8),
-                            SizedBox(width: 4),
-                            Text('LIVE', style: TextStyle(color: AppColors.red,
-                                fontSize: 10, fontWeight: FontWeight.bold)),
-                          ]),
-                        ),
-                    ]),
-                  );
-                }).toList(),
-              );
+                ]));
+              }).toList());
             },
           ),
         ]),
       ),
     );
   }
+}
 
-  Widget _infoRow(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(children: [
-        Icon(icon, size: 16, color: AppColors.textHint),
-        const SizedBox(width: 8),
-        Text('$label: ', style: TextStyle(
-            color: AppColors.textPrimary.withValues(alpha: 0.5), fontSize: 13)),
-        Flexible(child: Text(value,
-            style: const TextStyle(color: AppColors.textPrimary, fontSize: 13))),
-      ]),
-    );
-  }
+// ─────────────────────────────────────────────────────────────────────────────
+// Yordamchi widgetlar
+// ─────────────────────────────────────────────────────────────────────────────
+Widget _bosh(IconData icon, String text) {
+  return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+    Icon(icon, size: 56, color: AppColors.textHint.withValues(alpha: 0.4)),
+    const SizedBox(height: 12),
+    Text(text, style: const TextStyle(color: AppColors.textHint, fontSize: 15)),
+  ]));
+}
 
-  Widget _statMini(String label, String value, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
-      ),
-      child: Column(children: [
-        Text(value, style: TextStyle(color: color,
-            fontWeight: FontWeight.bold, fontSize: 14)),
-        Text(label, style: TextStyle(
-            color: AppColors.textPrimary.withValues(alpha: 0.5), fontSize: 10)),
-      ]),
-    );
-  }
+Widget _karta({required Widget child}) {
+  return Container(
+    margin: const EdgeInsets.only(bottom: 10),
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: AppColors.surfaceLight,
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: AppColors.border),
+    ),
+    child: child,
+  );
+}
+
+Widget _avatar(String harf) {
+  return CircleAvatar(
+    radius: 20,
+    backgroundColor: AppColors.primaryDark,
+    child: Text(harf.toUpperCase(),
+        style: const TextStyle(color: AppColors.primaryLight,
+            fontWeight: FontWeight.bold)),
+  );
+}
+
+Widget _holatChip(String text, Color color) {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.15),
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Text(text, style: TextStyle(color: color,
+        fontSize: 11, fontWeight: FontWeight.w600)),
+  );
+}
+
+Widget _infoRow(IconData icon, String label, String value) {
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Row(children: [
+      Icon(icon, size: 15, color: AppColors.textHint),
+      const SizedBox(width: 8),
+      Text('$label: ', style: TextStyle(
+          color: AppColors.textPrimary.withValues(alpha: 0.5), fontSize: 12)),
+      Flexible(child: Text(value,
+          style: const TextStyle(color: AppColors.textPrimary, fontSize: 12))),
+    ]),
+  );
+}
+
+Widget _statMini(String label, String value, Color color) {
+  return Container(
+    padding: const EdgeInsets.all(10),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.08),
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: color.withValues(alpha: 0.2)),
+    ),
+    child: Column(children: [
+      Text(value, style: TextStyle(color: color,
+          fontWeight: FontWeight.bold, fontSize: 13)),
+      Text(label, style: TextStyle(
+          color: AppColors.textPrimary.withValues(alpha: 0.5), fontSize: 10)),
+    ]),
+  );
 }

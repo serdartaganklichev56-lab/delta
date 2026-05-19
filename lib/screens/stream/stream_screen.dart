@@ -87,6 +87,20 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
       final token = data['token'] as String;
       final url   = data['url']   as String;
 
+      // 60 kishidan oshmasin
+      final roomInfo = await FirebaseFirestore.instance
+          .collection('guruhlar').doc(widget.room.id).get();
+      final azolar = (roomInfo.data()?['azolar'] as List? ?? []).length;
+      if (!_menUstoz && azolar >= 60) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Xona to\'liq — maksimal 60 ishtirokchi'),
+              backgroundColor: Colors.red));
+          Navigator.pop(context);
+        }
+        return;
+      }
+
       _room = Room();
       _room!.addListener(_roomListener);
       await _room!.connect(url, token,

@@ -200,7 +200,7 @@ class _GuruhIchidaScreenState extends State<GuruhIchidaScreen> {
                 // Talaba: stream faol bo'lsa banner
                 if (!widget.menUstoz && streamFaol) ...[
                   GestureDetector(
-                    onTap: () => Navigator.push(context, MaterialPageRoute(
+                    onTap: () => Navigator.pushReplacement(context, MaterialPageRoute(
                         builder: (_) => StreamScreen(
                             room: room, user: widget.user))),
                     child: Container(
@@ -347,7 +347,7 @@ class _GuruhIchidaScreenState extends State<GuruhIchidaScreen> {
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
                   FloatingActionButton(
                     backgroundColor: AppColors.red,
-                    onPressed: () => Navigator.push(context, MaterialPageRoute(
+                    onPressed: () => Navigator.pushReplacement(context, MaterialPageRoute(
                         builder: (_) => StreamScreen(room: room, user: widget.user))),
                     child: const Icon(Icons.videocam, color: Colors.white),
                   ),

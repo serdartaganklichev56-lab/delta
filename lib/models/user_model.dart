@@ -7,9 +7,11 @@ class UserModel {
   final String role;
   final int minutesLeft;
   final int extraMinutes;
-  final String? tarifDaqiqa;   // '1500' | '3000' | '6000' | null
-  final int? tarifIshtirokchi; // 50 | 100 | 150 | null
+  final String? tarifDaqiqa;
+  final int? tarifIshtirokchi;
   final DateTime createdAt;
+  final String? telegramChatId;
+  final DateTime? tarifTugash; // 30 kun
 
   UserModel({
     required this.uid,
@@ -23,39 +25,29 @@ class UserModel {
     this.tarifDaqiqa,
     this.tarifIshtirokchi,
     required this.createdAt,
+    this.telegramChatId,
+    this.tarifTugash,
   });
 
   bool get isDomla => role == 'domla';
   bool get isTalaba => role == 'talaba';
   bool get isCeo => role == 'ceo';
   bool get hasTarif => tarifDaqiqa != null && tarifIshtirokchi != null;
+  bool get tarifFaol => tarifTugash != null && tarifTugash!.isAfter(DateTime.now());
   String get fullName => familya.isNotEmpty ? '$name $familya' : name;
-
   int get tarifLimit => int.tryParse(tarifDaqiqa ?? '0') ?? 0;
   int get jami => minutesLeft + extraMinutes;
 
-  // Qo'shimcha daqiqa sotib olish mumkin bo'lgan max miqdor
   int get maxExtraBuyable {
-    final qolgan = extraMinutes;
-    return (2000 - qolgan).clamp(0, 2000);
+    return (2000 - extraMinutes).clamp(0, 2000);
   }
 
-  // Tarif narxi (so'm)
+  // Faqat 3 ta tarif, ishtirokchi har doim 60
   static int tarifNarxi(String daqiqa, int ishtirokchi) {
     final d = int.tryParse(daqiqa) ?? 0;
-    if (d == 1500) {
-      if (ishtirokchi == 50) return 150000;
-      if (ishtirokchi == 100) return 300000;
-      if (ishtirokchi == 150) return 500000;
-    } else if (d == 3000) {
-      if (ishtirokchi == 50) return 300000;
-      if (ishtirokchi == 100) return 600000;
-      if (ishtirokchi == 150) return 1000000;
-    } else if (d == 6000) {
-      if (ishtirokchi == 50) return 500000;
-      if (ishtirokchi == 100) return 1000000;
-      if (ishtirokchi == 150) return 1500000;
-    }
+    if (d == 1500) return 150000;
+    if (d == 3000) return 300000;
+    if (d == 6000) return 600000;
     return 0;
   }
 
@@ -67,13 +59,17 @@ class UserModel {
       phone: map['phone'] ?? '',
       email: map['email'] ?? '',
       role: map['role'] ?? map['rol'] ?? 'talaba',
-      minutesLeft: map['minutesLeft'] ?? map['minutes_left'] ?? map['daqiqaLimit'] ?? 0,
+      minutesLeft: map['minutesLeft'] ?? map['minutes_left'] ?? 0,
       extraMinutes: map['extraMinutes'] ?? 0,
       tarifDaqiqa: map['tarifDaqiqa'],
       tarifIshtirokchi: map['tarifIshtirokchi'],
       createdAt: map['created_at'] != null
           ? DateTime.fromMillisecondsSinceEpoch(map['created_at'])
           : DateTime.now(),
+      telegramChatId: map['telegramChatId'],
+      tarifTugash: map['tarifTugash'] != null
+          ? DateTime.fromMillisecondsSinceEpoch(map['tarifTugash'])
+          : null,
     );
   }
 
@@ -92,6 +88,8 @@ class UserModel {
       'tarifDaqiqa': tarifDaqiqa,
       'tarifIshtirokchi': tarifIshtirokchi,
       'created_at': createdAt.millisecondsSinceEpoch,
+      'telegramChatId': telegramChatId,
+      'tarifTugash': tarifTugash?.millisecondsSinceEpoch,
     };
   }
 }
