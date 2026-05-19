@@ -7,11 +7,12 @@ import 'package:http/http.dart' as http;
 import 'package:livekit_client/livekit_client.dart';
 import 'package:flutter_background/flutter_background.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
-import 'package:flutter/services.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/user_model.dart';
 import '../../models/room_model.dart';
 import '../guruh/whiteboard_screen.dart';
+
+const String _tokenServer = 'http://178.105.129.234:3000';
 
 class StreamScreen extends StatefulWidget {
   final RoomModel room;
@@ -23,8 +24,6 @@ class StreamScreen extends StatefulWidget {
 }
 
 class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver {
-  static const String tokenServer = 'http://178.105.129.234:3000';
-
   Room? _room;
   LocalParticipant? _localParticipant;
   bool _menUstoz = false;
@@ -33,8 +32,11 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
   bool _micOchiq = false;
   bool _videoOchiq = false;
   bool _ekranUlashish = false;
+
+  // Egress holati — "Yozish" tugmasiga bog'langan
   bool _yozilmoqda = false;
-  static const _recordChannel = MethodChannel('com.example.delta/record');
+  String? _egressId;
+
   bool _oldKamera = true;
   VideoTrack? _remoteVideoTrack;
   final List<RemoteParticipant> _remoteParticipants = [];
@@ -49,23 +51,14 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    if (!_ekranUlashish) {
-      _streamniTugat();
-    }
+    if (!_ekranUlashish) _streamniTugat();
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      // App foreground ga qaytganda — ekran ulashish davom etsin
-      if (mounted) setState(() {});
-    } else if (state == AppLifecycleState.paused) {
-      // Background da ham ulanishni saqlash — disconnect qilmaymiz
-    } else if (state == AppLifecycleState.detached) {
-      // Faqat detached da tozalash
-      _streamniTugat();
-    }
+    if (state == AppLifecycleState.detached) _streamniTugat();
+    if (mounted) setState(() {});
   }
 
   Future<void> _boshlash() async {
@@ -79,7 +72,7 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
   Future<void> _livekitGaUlan() async {
     try {
       final response = await http.post(
-        Uri.parse('$tokenServer/token'),
+        Uri.parse('$_tokenServer/token'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'roomName': widget.room.id,
@@ -92,7 +85,7 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
       if (response.statusCode != 200) throw Exception('Token xatosi');
       final data = jsonDecode(response.body);
       final token = data['token'] as String;
-      final url = data['url'] as String;
+      final url   = data['url']   as String;
 
       _room = Room();
       _room!.addListener(_roomListener);
@@ -117,6 +110,73 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
     }
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // "Yozish" tugmasi — Egress boshlash / to'xtatish
+  // ─────────────────────────────────────────────────────────────────────────
+  Future<void> _ekranYozishToggle() async {
+    if (!_menUstoz) return;
+
+    if (_yozilmoqda) {
+      // ── TO'XTATISH ──────────────────────────────────────────────────────
+      try {
+        await http.post(
+          Uri.parse('$_tokenServer/egress/stop'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'egressId': _egressId}),
+        );
+        if (mounted) {
+          setState(() { _yozilmoqda = false; _egressId = null; });
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('✅ Yozish tugadi — Telegram ga yuboriladi'),
+              backgroundColor: Colors.green));
+        }
+      } catch (e) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("To'xtatishda xato: $e"),
+                backgroundColor: AppColors.red));
+      }
+      return;
+    }
+
+    // ── BOSHLASH ────────────────────────────────────────────────────────────
+    try {
+      final chatId = widget.user.telegramChatId ?? '';
+
+      final response = await http.post(
+        Uri.parse('$_tokenServer/egress/start'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'roomName': widget.room.id,
+          'chatId':   chatId,
+          'ustozName': widget.user.fullName,
+          'metadata': jsonEncode({
+            'chat_id': chatId,
+            'ustoz':   widget.user.fullName,
+          }),
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (mounted) {
+          setState(() {
+            _egressId    = data['egressId'] as String?;
+            _yozilmoqda  = true;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('🔴 Yozish boshlandi'),
+              backgroundColor: Colors.red));
+        }
+      } else {
+        throw Exception('Server xatosi: ${response.statusCode}');
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Yozishda xato: $e'),
+              backgroundColor: AppColors.red));
+    }
+  }
+
   void _roomListener() {
     if (_room == null || !mounted) return;
     setState(() {
@@ -135,24 +195,19 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
             }
           }
         }
-        // Ekran ulashish ustunlik oladi
         _remoteVideoTrack = screenTrack ?? cameraTrack;
         if (_remoteVideoTrack != null) break;
       }
     });
   }
 
-  // Ekran ulashish — flutter_background + Helper.requestCapturePermission
   Future<void> _ekranUlashishToggle() async {
     if (_localParticipant == null || !_ulangan) return;
 
     if (_ekranUlashish) {
-      // To'xtatish
       try {
         await _localParticipant!.setScreenShareEnabled(false);
-        if (Platform.isAndroid) {
-          await FlutterBackground.disableBackgroundExecution();
-        }
+        if (Platform.isAndroid) await FlutterBackground.disableBackgroundExecution();
         if (mounted) setState(() => _ekranUlashish = false);
       } catch (e) {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(
@@ -162,9 +217,7 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
       return;
     }
 
-    // Boshlash
     try {
-      // 1. flutter_webrtc dan MediaProjection ruxsati
       bool hasCapturePermission = await Helper.requestCapturePermission();
       if (!hasCapturePermission) {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(
@@ -172,8 +225,6 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
                 backgroundColor: Colors.red));
         return;
       }
-
-      // 2. Background execution — app background ga tushsa ham ishlaydi
       if (Platform.isAndroid) {
         const androidConfig = FlutterBackgroundAndroidConfig(
           notificationTitle: 'Delta',
@@ -183,20 +234,13 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
         await FlutterBackground.initialize(androidConfig: androidConfig);
         await FlutterBackground.enableBackgroundExecution();
       }
-
-      // 3. Kamerani o'chiramiz
       if (_videoOchiq) {
         await _localParticipant!.setCameraEnabled(false);
         _videoOchiq = false;
       }
-
-      // 4. LiveKit ga ekran stream ulaymiz
-      await _localParticipant!.setScreenShareEnabled(
-        true,
-        screenShareCaptureOptions: const ScreenShareCaptureOptions(
-          captureScreenAudio: false,
-        ),
-      );
+      await _localParticipant!.setScreenShareEnabled(true,
+          screenShareCaptureOptions:
+              const ScreenShareCaptureOptions(captureScreenAudio: false));
       _ekranUlashish = true;
       _roomListener();
       if (mounted) setState(() {});
@@ -210,7 +254,6 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
     }
   }
 
-  // Ishtirokchilar ro'yxati
   void _ishtirokchilarKorsat() {
     showModalBottomSheet(
       context: context,
@@ -281,8 +324,7 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
       if (cameraTracks.isNotEmpty) {
         final track = cameraTracks.first.track as LocalVideoTrack;
         await track.setCameraPosition(
-          _oldKamera ? CameraPosition.back : CameraPosition.front,
-        );
+            _oldKamera ? CameraPosition.back : CameraPosition.front);
         setState(() => _oldKamera = !_oldKamera);
       }
     } catch (e) {
@@ -292,64 +334,24 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
     }
   }
 
-  Future<void> _ekranYozishToggle() async {
-    if (!_menUstoz || !Platform.isAndroid) return;
-
-    if (_yozilmoqda) {
-      // To'xtatish
-      try {
-        await _recordChannel.invokeMethod('stopRecording');
-        if (mounted) {
-          setState(() => _yozilmoqda = false);
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('✅ Yozish tugadi — Xotirasiga saqlandi'),
-              backgroundColor: Colors.green));
-        }
-      } catch (e) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('To\'xtatishda xato: $e'),
-                backgroundColor: AppColors.red));
-      }
-      return;
-    }
-
-    // Boshlash — native MediaProjection + MediaCodec
-    try {
-      final filePath = await _recordChannel.invokeMethod<String>('startRecording');
-      if (mounted) {
-        setState(() => _yozilmoqda = true);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('🔴 Yozish boshlandi'),
-            backgroundColor: Colors.red));
-      }
-    } on PlatformException catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(e.code == 'PERMISSION_DENIED'
-              ? 'Ekran yozishga ruxsat berilmadi'
-              : 'Xato: ${e.message}'),
-          backgroundColor: AppColors.red));
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Yozishda xato: $e'),
-          backgroundColor: AppColors.red));
-    }
-  }
-
   Future<void> _streamniTugat() async {
     if (_menUstoz) {
-      // Yozish davom etayotgan bo'lsa to'xtatamiz
-      if (_yozilmoqda) {
+      // Yozish davom etayotgan bo'lsa Egress ni to'xtatamiz
+      if (_yozilmoqda && _egressId != null) {
         try {
-          await _recordChannel.invokeMethod('stopRecording');
+          await http.post(
+            Uri.parse('$_tokenServer/egress/stop'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'egressId': _egressId}),
+          );
           _yozilmoqda = false;
+          _egressId   = null;
         } catch (_) {}
       }
       if (_ekranUlashish) {
         try {
           await _localParticipant?.setScreenShareEnabled(false);
-          if (Platform.isAndroid) {
-            await FlutterBackground.disableBackgroundExecution();
-          }
+          if (Platform.isAndroid) await FlutterBackground.disableBackgroundExecution();
           _ekranUlashish = false;
         } catch (_) {}
       }
@@ -369,6 +371,9 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
     if (mounted) Navigator.pop(context);
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // BUILD
+  // ─────────────────────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     if (_yuklanmoqda) {
@@ -411,8 +416,8 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
                       color: Colors.black45,
                       borderRadius: BorderRadius.circular(20)),
                   child: Icon(
-                    _oldKamera ? Icons.camera_front : Icons.camera_rear,
-                    color: Colors.white, size: 22),
+                      _oldKamera ? Icons.camera_front : Icons.camera_rear,
+                      color: Colors.white, size: 22),
                 ),
               ),
             ),
@@ -423,24 +428,18 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
 
   Widget _buildVideoArea() {
     if (_menUstoz) {
-      // Ekran ulashish tracki
       if (_ekranUlashish) {
         final screenTrack = _localParticipant
             ?.videoTrackPublications
             .where((p) => p.track != null && p.source == TrackSource.screenShareVideo)
             .firstOrNull?.track as VideoTrack?;
-        if (screenTrack != null) {
-          return SizedBox.expand(child: VideoTrackRenderer(screenTrack));
-        }
+        if (screenTrack != null) return SizedBox.expand(child: VideoTrackRenderer(screenTrack));
       }
-      // Kamera tracki
       final cameraTrack = _localParticipant
           ?.videoTrackPublications
           .where((p) => p.track != null && p.source != TrackSource.screenShareVideo)
           .firstOrNull?.track as VideoTrack?;
-      if (cameraTrack != null) {
-        return SizedBox.expand(child: VideoTrackRenderer(cameraTrack));
-      }
+      if (cameraTrack != null) return SizedBox.expand(child: VideoTrackRenderer(cameraTrack));
     } else {
       if (_remoteVideoTrack != null) {
         return SizedBox.expand(child: VideoTrackRenderer(_remoteVideoTrack!));
@@ -537,7 +536,6 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
             begin: Alignment.bottomCenter, end: Alignment.topCenter,
             colors: [Color(0xDD000000), Colors.transparent])),
       child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
-        // Mic — talaba uchun
         if (!_menUstoz)
           _kontrolTugma(
             icon: _micOchiq ? Icons.mic : Icons.mic_off,
@@ -556,7 +554,6 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
             label: 'Mic',
           ),
 
-        // Ustoz tugmalari
         if (_menUstoz) ...[
           _kontrolTugma(
             icon: _micOchiq ? Icons.mic : Icons.mic_off,
@@ -584,6 +581,7 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
             onTap: _ekranUlashishToggle,
             label: _ekranUlashish ? "To'xtat" : 'Ekran',
           ),
+          // "Yozish" tugmasi — Egress boshlash/to'xtatish
           _kontrolTugma(
             icon: _yozilmoqda ? Icons.stop_circle : Icons.fiber_manual_record,
             rang: _yozilmoqda ? Colors.red : Colors.white24,
@@ -592,7 +590,6 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
           ),
         ],
 
-        // Whiteboard — barcha uchun
         _kontrolTugma(
           icon: Icons.draw_outlined,
           rang: _ekranUlashish
@@ -600,13 +597,13 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
               : Colors.blue.withValues(alpha: 0.5),
           onTap: _ekranUlashish
               ? () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text("Ekran ulashishni to'xtating, so'ng taxtaga kiring"),
-                duration: Duration(seconds: 2),
-              ))
+                  const SnackBar(
+                    content: Text("Ekran ulashishni to'xtating, so'ng taxtaga kiring"),
+                    duration: Duration(seconds: 2),
+                  ))
               : () => Navigator.push(context, MaterialPageRoute(
-              builder: (_) => WhiteboardScreen(
-                  room: widget.room, user: widget.user))),
+                  builder: (_) => WhiteboardScreen(
+                      room: widget.room, user: widget.user))),
           label: 'Tahta',
         ),
 
@@ -634,8 +631,7 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
           child: Icon(icon, color: Colors.white, size: 22),
         ),
         const SizedBox(height: 4),
-        Text(label,
-            style: const TextStyle(color: Colors.white60, fontSize: 9)),
+        Text(label, style: const TextStyle(color: Colors.white60, fontSize: 9)),
       ]),
     );
   }
