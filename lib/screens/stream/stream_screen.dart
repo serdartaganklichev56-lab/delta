@@ -140,7 +140,10 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
 
     // ── BOSHLASH ────────────────────────────────────────────────────────────
     try {
-      final chatId = widget.user.telegramChatId ?? '';
+      // telegramChatId ni Firestore dan o'qiymiz (UserModel ga field qo'shmaslik uchun)
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users').doc(widget.user.uid).get();
+      final chatId = (userDoc.data()?['telegramChatId'] as String?) ?? '';
 
       final response = await http.post(
         Uri.parse('$_tokenServer/egress/start'),
