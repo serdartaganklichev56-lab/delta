@@ -24,13 +24,19 @@ class ScreenRecorderService : Service() {
         const val CHANNEL_ID        = "screen_recorder_channel"
         const val NOTIF_ID          = 2
 
-        // LiveKit MediaProjection ni tashqaridan uzatish uchun
-        // (ekran ulashish allaqachon ochilgan bo'lsa)
+        // Ekran ulashish resultCode va data — yangi MediaProjection ochish uchun
+        var screenCaptureResultCode: Int = 0
+        var screenCaptureData: Intent? = null
+
+        // Agar ekran ulashish allaqachon bor bo'lsa — shu MediaProjection ishlatiladi
         var sharedMediaProjection: MediaProjection? = null
+
+        // Oxirgi yozilgan fayl yo'li
+        var lastFilePath: String = ""
     }
 
     private var mediaProjection: MediaProjection? = null
-    private var ownMediaProjection: Boolean = false  // biz ochdikmi yoki LiveKit ochdimi
+    private var ownMediaProjection: Boolean = false
     private var virtualDisplay: VirtualDisplay? = null
     private var mediaCodec: MediaCodec? = null
     private var mediaMuxer: MediaMuxer? = null
@@ -55,31 +61,46 @@ class ScreenRecorderService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> {
-                val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, Activity.RESULT_CANCELED)
-                val data = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
-                    intent.getParcelableExtra(EXTRA_DATA, Intent::class.java)
-                else
-                    @Suppress("DEPRECATION") intent.getParcelableExtra(EXTRA_DATA)
                 outputFile = intent.getStringExtra(EXTRA_FILE_PATH) ?: ""
-
                 startForeground(NOTIF_ID, buildNotification())
 
-                // Avval LiveKit MediaProjection bor-yo'qligini tekshiramiz
-                if (sharedMediaProjection != null) {
-                    // LiveKit allaqachon ochgan — shu MediaProjection dan foydalanamiz
-                    mediaProjection = sharedMediaProjection
-                    ownMediaProjection = false
-                    startRecording()
-                } else if (data != null && outputFile.isNotEmpty()) {
-                    // Yangi MediaProjection ochamiz
-                    val mgr = getSystemService(Context.MEDIA_PROJECTION_SERVICE)
-                            as MediaProjectionManager
-                    mediaProjection = mgr.getMediaProjection(resultCode, data)
-                    ownMediaProjection = true
-                    startRecording()
-                } else {
-                    stopSelf()
+                // Yozish uchun MediaProjection olish
+                when {
+                    // 1. Ekran ulashish ochiq — shu resultCode/data dan yangi MP ochamiz
+                    screenCaptureData != null && screenCaptureResultCode != 0 -> {
+                        try {
+                            val mgr = getSystemService(Context.MEDIA_PROJECTION_SERVICE)
+                                    as MediaProjectionManager
+                            mediaProjection = mgr.getMediaProjection(
+                                screenCaptureResultCode, screenCaptureData!!)
+                            ownMediaProjection = true
+                            startRecording()
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                            // Fallback: yangi ruxsat kerak
+                            stopSelf()
+                        }
+                    }
+                    // 2. Intent dan resultCode/data keldi
+                    intent.getIntExtra(EXTRA_RESULT_CODE, 0) != 0 -> {
+                        val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, Activity.RESULT_CANCELED)
+                        val data = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+                            intent.getParcelableExtra(EXTRA_DATA, Intent::class.java)
+                        else
+                            @Suppress("DEPRECATION") intent.getParcelableExtra(EXTRA_DATA)
+
+                        if (data != null) {
+                            val mgr = getSystemService(Context.MEDIA_PROJECTION_SERVICE)
+                                    as MediaProjectionManager
+                            mediaProjection = mgr.getMediaProjection(resultCode, data)
+                            ownMediaProjection = true
+                            startRecording()
+                        } else stopSelf()
+                    }
+                    else -> stopSelf()
                 }
+
+                if (outputFile.isNotEmpty()) lastFilePath = outputFile
             }
             ACTION_STOP -> {
                 stopRecording()
@@ -91,6 +112,8 @@ class ScreenRecorderService : Service() {
     }
 
     private fun startRecording() {
+        if (outputFile.isEmpty()) { stopSelf(); return }
+
         val metrics = DisplayMetrics()
         val wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -142,11 +165,8 @@ class ScreenRecorderService : Service() {
     private fun setupVirtualDisplay(width: Int, height: Int, density: Int) {
         val surface = mediaCodec!!.createInputSurface()
         mediaCodec!!.start()
-
-        // MediaProjection dan YANGI VirtualDisplay yaratamiz
-        // Bu LiveKit ning VirtualDisplay bilan parallel ishlaydi
         virtualDisplay = mediaProjection!!.createVirtualDisplay(
-            "DeltaScreenRecorder",
+            "DeltaRecorder",
             width, height, density,
             DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
             surface, null, null
@@ -201,10 +221,7 @@ class ScreenRecorderService : Service() {
             val sampleRate = 44100
             val bitRate    = 128_000
             val minBufSize = AudioRecord.getMinBufferSize(
-                sampleRate,
-                AudioFormat.CHANNEL_IN_MONO,
-                AudioFormat.ENCODING_PCM_16BIT
-            )
+                sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
 
             val audioFormat = MediaFormat.createAudioFormat(
                 MediaFormat.MIMETYPE_AUDIO_AAC, sampleRate, 1).apply {
@@ -217,7 +234,6 @@ class ScreenRecorderService : Service() {
             val audioCodec = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC)
             audioCodec.configure(audioFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
             audioCodec.start()
-
             audioRecord!!.startRecording()
 
             val pcmBuf     = ByteArray(minBufSize)
@@ -232,8 +248,7 @@ class ScreenRecorderService : Service() {
                         val inputBuf = audioCodec.getInputBuffer(inputIndex)!!
                         inputBuf.clear()
                         inputBuf.put(pcmBuf, 0, read)
-                        audioCodec.queueInputBuffer(
-                            inputIndex, 0, read, presentationTimeUs, 0)
+                        audioCodec.queueInputBuffer(inputIndex, 0, read, presentationTimeUs, 0)
                         presentationTimeUs += (read * 1_000_000L) / (sampleRate * 2)
                     }
                 }
@@ -273,17 +288,13 @@ class ScreenRecorderService : Service() {
         isRecording = false
         try { videoThread?.join(3000) } catch (_: Exception) {}
         try { audioThread?.join(3000) } catch (_: Exception) {}
-
         try { mediaCodec?.signalEndOfInputStream() } catch (_: Exception) {}
         try { mediaCodec?.stop(); mediaCodec?.release() } catch (_: Exception) {}
         try { audioRecord?.stop(); audioRecord?.release() } catch (_: Exception) {}
         try { virtualDisplay?.release() } catch (_: Exception) {}
-
-        // Faqat biz ochgan bo'lsak to'xtatamiz
         if (ownMediaProjection) {
             try { mediaProjection?.stop() } catch (_: Exception) {}
         }
-
         try { if (muxerStarted) mediaMuxer?.stop(); mediaMuxer?.release() } catch (_: Exception) {}
 
         mediaCodec      = null

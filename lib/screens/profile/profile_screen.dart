@@ -217,7 +217,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // ── Obuna banner ──────────────────────────────────────────────────────────────
   Widget _buildObunaBanner() {
     final tt = _tarifTugash;
-    final faol = tt != null && tt.isAfter(DateTime.now());
+    // tarifTugash null bo'lsa = umrbod obuna (CEO)
+    final faol = tt == null || tt.isAfter(DateTime.now());
     final qolganKun = tt != null ? tt.difference(DateTime.now()).inDays : 0;
 
     return GestureDetector(

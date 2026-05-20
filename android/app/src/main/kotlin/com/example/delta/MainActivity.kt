@@ -18,10 +18,10 @@ import java.util.*
 
 class MainActivity : FlutterFragmentActivity() {
 
-    private val SCREEN_CHANNEL   = "com.example.delta/screen"
-    private val RECORD_CHANNEL   = "com.example.delta/record"
-    private val REQUEST_SCREEN   = 1001
-    private val REQUEST_RECORD   = 1002
+    private val SCREEN_CHANNEL = "com.example.delta/screen"
+    private val RECORD_CHANNEL = "com.example.delta/record"
+    private val REQUEST_SCREEN = 1001
+    private val REQUEST_RECORD = 1002
 
     private var pendingScreenResult: MethodChannel.Result? = null
     private var pendingRecordResult: MethodChannel.Result? = null
@@ -41,6 +41,8 @@ class MainActivity : FlutterFragmentActivity() {
                         startActivityForResult(mgr.createScreenCaptureIntent(), REQUEST_SCREEN)
                     }
                     "stopScreenCapture" -> {
+                        // Ekran ulashish to'xtatilganda sharedMediaProjection ham tozalanadi
+                        ScreenRecorderService.sharedMediaProjection = null
                         stopService(Intent(this, ScreenCaptureService::class.java))
                         result.success(true)
                     }
@@ -48,25 +50,44 @@ class MainActivity : FlutterFragmentActivity() {
                 }
             }
 
-        // Ekran yozish channel (native MediaCodec)
+        // Ekran yozish channel
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, RECORD_CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "startRecording" -> {
-                        // Fayl yo'li tayyorlaymiz
-                        val sdf = SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault())
-                        val fileName = "delta_${sdf.format(Date())}.mp4"
-                        val dir = getExternalFilesDir(Environment.DIRECTORY_MOVIES)
-                            ?: filesDir
-                        if (!dir.exists()) dir.mkdirs()
-                        pendingRecordFilePath = File(dir, fileName).absolutePath
-                        pendingRecordResult = result
+                        // Agar ekran ulashish allaqachon ochiq bo'lsa (sharedMediaProjection bor)
+                        // yangi ruxsat so'ramaymiz — sharedMediaProjection ishlatiladi
+                        if (ScreenRecorderService.sharedMediaProjection != null) {
+                            val sdf = SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault())
+                            val fileName = "delta_${sdf.format(Date())}.mp4"
+                            val dir = getExternalFilesDir(Environment.DIRECTORY_MOVIES) ?: filesDir
+                            if (!dir.exists()) dir.mkdirs()
+                            val filePath = File(dir, fileName).absolutePath
 
-                        // MediaProjection ruxsati so'raymiz
-                        val mgr = getSystemService(Context.MEDIA_PROJECTION_SERVICE)
-                                as MediaProjectionManager
-                        startActivityForResult(
-                            mgr.createScreenCaptureIntent(), REQUEST_RECORD)
+                            val serviceIntent = Intent(this, ScreenRecorderService::class.java).apply {
+                                action = ScreenRecorderService.ACTION_START
+                                putExtra(ScreenRecorderService.EXTRA_FILE_PATH, filePath)
+                                // resultCode va data kerak emas — sharedMediaProjection ishlatiladi
+                            }
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                                startForegroundService(serviceIntent)
+                            else
+                                startService(serviceIntent)
+
+                            result.success(filePath)
+                        } else {
+                            // Ekran ulashish yo'q — yangi MediaProjection so'raymiz
+                            val sdf = SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault())
+                            val fileName = "delta_${sdf.format(Date())}.mp4"
+                            val dir = getExternalFilesDir(Environment.DIRECTORY_MOVIES) ?: filesDir
+                            if (!dir.exists()) dir.mkdirs()
+                            pendingRecordFilePath = File(dir, fileName).absolutePath
+                            pendingRecordResult = result
+
+                            val mgr = getSystemService(Context.MEDIA_PROJECTION_SERVICE)
+                                    as MediaProjectionManager
+                            startActivityForResult(mgr.createScreenCaptureIntent(), REQUEST_RECORD)
+                        }
                     }
                     "stopRecording" -> {
                         val stopIntent = Intent(this, ScreenRecorderService::class.java).apply {
@@ -74,6 +95,9 @@ class MainActivity : FlutterFragmentActivity() {
                         }
                         stopService(stopIntent)
                         result.success(true)
+                    }
+                    "getFilePath" -> {
+                        result.success(ScreenRecorderService.lastFilePath)
                     }
                     else -> result.notImplemented()
                 }
@@ -87,6 +111,7 @@ class MainActivity : FlutterFragmentActivity() {
 
             REQUEST_SCREEN -> {
                 if (resultCode == Activity.RESULT_OK && data != null) {
+                    // LiveKit uchun service
                     val serviceIntent = Intent(this, ScreenCaptureService::class.java).apply {
                         putExtra("resultCode", resultCode)
                         putExtra("data", data)
@@ -96,11 +121,20 @@ class MainActivity : FlutterFragmentActivity() {
                     else
                         startService(serviceIntent)
 
-                    // LiveKit MediaProjection ni ScreenRecorderService bilan ulashamiz
-                    val mgr = getSystemService(Context.MEDIA_PROJECTION_SERVICE)
-                            as MediaProjectionManager
-                    ScreenRecorderService.sharedMediaProjection =
-                        mgr.getMediaProjection(resultCode, data)
+                    // sharedMediaProjection — yozish uchun alohida MediaProjection
+                    // LiveKit ning resultCode/data dan BOSHQA MediaProjection ochamiz
+                    // Bu Android 10+ da ishlaydi
+                    try {
+                        val mgr = getSystemService(Context.MEDIA_PROJECTION_SERVICE)
+                                as MediaProjectionManager
+                        // Eslatma: Android 14+ da bir resultCode faqat bir marta ishlatiladi
+                        // Shuning uchun sharedMediaProjection ni LiveKit boshlaganidan keyin olamiz
+                        // Bu yerda faqat flag qo'yamiz
+                        ScreenRecorderService.screenCaptureResultCode = resultCode
+                        ScreenRecorderService.screenCaptureData = data
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
 
                     pendingScreenResult?.success(true)
                 } else {
@@ -129,7 +163,6 @@ class MainActivity : FlutterFragmentActivity() {
                 pendingRecordFilePath = ""
             }
         }
-        // LiveKit ham shu intent ni tinglaydi
         super.onActivityResult(requestCode, resultCode, data)
     }
 
@@ -142,7 +175,7 @@ class MainActivity : FlutterFragmentActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             listOf(
-                "livekit_screen_capture"          to "Ekran ulashish",
+                "livekit_screen_capture"           to "Ekran ulashish",
                 "io.livekit.android.screencapture" to "LiveKit Screen Capture",
                 "screen_capture_channel"           to "Ekran ulashish xizmati",
                 ScreenRecorderService.CHANNEL_ID   to "Ekran yozish"
@@ -156,4 +189,3 @@ class MainActivity : FlutterFragmentActivity() {
         }
     }
 }
-

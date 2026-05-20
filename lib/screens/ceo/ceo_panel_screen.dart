@@ -223,6 +223,16 @@ class _FoydalanuvchilarTab extends StatelessWidget {
 
     final tugash = DateTime.now().add(const Duration(days: 30));
 
+    // Daromad yozamiz
+    await FirebaseFirestore.instance.collection('daromad').add({
+      'uid': uid,
+      'ism': ism,
+      'summa': 200000,
+      'vaqt': DateTime.now().millisecondsSinceEpoch,
+      'oy': DateTime.now().month,
+      'yil': DateTime.now().year,
+    });
+
     // Ikki kolleksiyaga ham yozamiz
     final batch = FirebaseFirestore.instance.batch();
     batch.set(
@@ -255,9 +265,26 @@ class _UstozlarTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return StreamBuilder(
       stream: FirebaseFirestore.instance
-          .collection('foydalanuvchilar')
+          .collection('daromad')
           .snapshots(),
       builder: (context, snap) {
+        // Daromad hisoblash
+        final daromadDocs = snap.data?.docs ?? [];
+        int jami = 0, buoy = 0;
+        final now2 = DateTime.now();
+        for (final doc in daromadDocs) {
+          final d = doc.data() as Map<String, dynamic>;
+          final summa = d['summa'] as int? ?? 200000;
+          jami += summa;
+          final vaqt = d['vaqt'] as int?;
+          if (vaqt != null) {
+            final dt = DateTime.fromMillisecondsSinceEpoch(vaqt);
+            if (dt.month == now2.month && dt.year == now2.year) buoy += summa;
+          }
+        }
+        return StreamBuilder(
+          stream: FirebaseFirestore.instance.collection('foydalanuvchilar').snapshots(),
+          builder: (context, snap) {
         final allDocs = snap.data?.docs ?? [];
         final now = DateTime.now();
         final obunalilar = allDocs.where((doc) {
@@ -455,9 +482,26 @@ class _DaromadSahifa extends StatelessWidget {
   Widget build(BuildContext context) {
     return StreamBuilder(
       stream: FirebaseFirestore.instance
-          .collection('foydalanuvchilar')
+          .collection('daromad')
           .snapshots(),
       builder: (context, snap) {
+        // Daromad hisoblash
+        final daromadDocs = snap.data?.docs ?? [];
+        int jami = 0, buoy = 0;
+        final now2 = DateTime.now();
+        for (final doc in daromadDocs) {
+          final d = doc.data() as Map<String, dynamic>;
+          final summa = d['summa'] as int? ?? 200000;
+          jami += summa;
+          final vaqt = d['vaqt'] as int?;
+          if (vaqt != null) {
+            final dt = DateTime.fromMillisecondsSinceEpoch(vaqt);
+            if (dt.month == now2.month && dt.year == now2.year) buoy += summa;
+          }
+        }
+        return StreamBuilder(
+          stream: FirebaseFirestore.instance.collection('foydalanuvchilar').snapshots(),
+          builder: (context, snap) {
         final docs = snap.data?.docs ?? [];
         final now = DateTime.now();
         int jami = 0, buoy = 0;
@@ -468,13 +512,6 @@ class _DaromadSahifa extends StatelessWidget {
           final tt = data['tarifTugash'] as int?;
           if (tt != null && DateTime.fromMillisecondsSinceEpoch(tt).isAfter(now)) {
             obunaliSoni++;
-          }
-          // Har obuna = 200,000 so'm (taxminiy hisob)
-          jami += 200000;
-          if (tt != null) {
-            final d = DateTime.fromMillisecondsSinceEpoch(tt)
-                .subtract(const Duration(days: 30));
-            if (d.month == now.month && d.year == now.year) buoy += 200000;
           }
         }
 
@@ -494,6 +531,8 @@ class _DaromadSahifa extends StatelessWidget {
             _bigCard("Faol obunalar", "$obunaliSoni ta",
                 Colors.orange, Icons.verified_outlined),
           ]),
+        );
+        },
         );
       },
     );
@@ -536,9 +575,26 @@ class _ObunaSahifa extends StatelessWidget {
   Widget build(BuildContext context) {
     return StreamBuilder(
       stream: FirebaseFirestore.instance
-          .collection('foydalanuvchilar')
+          .collection('daromad')
           .snapshots(),
       builder: (context, snap) {
+        // Daromad hisoblash
+        final daromadDocs = snap.data?.docs ?? [];
+        int jami = 0, buoy = 0;
+        final now2 = DateTime.now();
+        for (final doc in daromadDocs) {
+          final d = doc.data() as Map<String, dynamic>;
+          final summa = d['summa'] as int? ?? 200000;
+          jami += summa;
+          final vaqt = d['vaqt'] as int?;
+          if (vaqt != null) {
+            final dt = DateTime.fromMillisecondsSinceEpoch(vaqt);
+            if (dt.month == now2.month && dt.year == now2.year) buoy += summa;
+          }
+        }
+        return StreamBuilder(
+          stream: FirebaseFirestore.instance.collection('foydalanuvchilar').snapshots(),
+          builder: (context, snap) {
         final docs = snap.data?.docs ?? [];
         final now = DateTime.now();
         final obunalilar = docs.where((doc) {
