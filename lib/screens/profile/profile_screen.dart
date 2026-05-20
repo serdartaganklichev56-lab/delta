@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../core/theme/app_colors.dart';
@@ -62,13 +63,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: Colors.blue.shade200),
             ),
-            child: Text(
-              '1. Telegramda @userinfobot ga /start yuboring\n'
-              '2. Bot ID raqamingizni ko\'rsatadi\n'
-              '3. Shu raqamni kiriting',
-              style: TextStyle(color: Colors.blue.shade800,
-                  fontSize: 12, height: 1.5),
-            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(
+                '1. @DeltaEduBot ga o\'ting → /start bosing\n'
+                '2. Bot ID raqamingizni yuboradi\n'
+                '3. Shu raqamni kiriting',
+                style: TextStyle(color: Colors.blue.shade800,
+                    fontSize: 12, height: 1.5),
+              ),
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: () async {
+                  final url = Uri.parse('https://t.me/DeltaEduBot?start=getid');
+                  if (await canLaunchUrl(url)) {
+                    await launchUrl(url, mode: LaunchMode.externalApplication);
+                  }
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.blue,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.telegram, color: Colors.white, size: 16),
+                    SizedBox(width: 6),
+                    Text('@DeltaEduBot ga o\'tish',
+                        style: TextStyle(color: Colors.white, fontSize: 12,
+                            fontWeight: FontWeight.w600)),
+                  ]),
+                ),
+              ),
+            ]),
           ),
           const SizedBox(height: 16),
           TextField(

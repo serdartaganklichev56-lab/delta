@@ -102,11 +102,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           Row(
             children: [
-              Text(
-                widget.user.isDomla ? '👨‍🏫' : widget.user.isCeo ? '👑' : '👨‍🎓',
-                style: const TextStyle(fontSize: 20),
-              ),
-              const SizedBox(width: 8),
               CircleAvatar(
                 radius: 16,
                 backgroundColor: AppColors.primaryDark,
