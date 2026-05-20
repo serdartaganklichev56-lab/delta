@@ -179,7 +179,6 @@ class _FoydalanuvchilarTab extends StatelessWidget {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('users')
-          .orderBy('created_at', descending: true)
           .snapshots(),
       builder: (context, snap) {
         final docs = snap.data?.docs ?? [];

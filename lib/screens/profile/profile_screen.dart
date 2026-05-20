@@ -258,48 +258,58 @@ class _ProfileScreenState extends State<ProfileScreen> {
       const SizedBox(height: 14),
 
       if (!user.hasTarif) ...[
-        // Tariflar ro'yxati — faqat ko'rish
+        // Tariflar ro'yxati — narxlar bilan
         const Text('Tariflar',
             style: TextStyle(color: AppColors.textHint, fontSize: 12)),
         const SizedBox(height: 10),
-        Row(children: ['1500', '3000', '6000'].map((d) {
-          final narx = UserModel.tarifNarxi(d, 60);
-          return Expanded(
-            child: Container(
-              margin: const EdgeInsets.only(right: 6),
-              padding: const EdgeInsets.all(10),
+        ...[ 
+          {'daqiqa': '1500', 'narx': '150 000'},
+          {'daqiqa': '3000', 'narx': '300 000'},
+          {'daqiqa': '6000', 'narx': '600 000'},
+        ].map((t) => Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: AppColors.primaryDark.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Row(children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: AppColors.primaryDark.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.border),
+                color: AppColors.primary.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
               ),
-              child: Column(children: [
-                Text(d,
-                    style: const TextStyle(color: AppColors.primary,
-                        fontWeight: FontWeight.bold, fontSize: 15)),
-                const Text('min',
-                    style: TextStyle(color: AppColors.textHint, fontSize: 10)),
-                const SizedBox(height: 4),
-                Text('${narx ~/ 1000}K so\'m',
-                    style: const TextStyle(color: AppColors.textPrimary,
-                        fontSize: 11)),
-              ]),
+              child: Text(t['daqiqa']!,
+                  style: const TextStyle(color: AppColors.primary,
+                      fontWeight: FontWeight.bold, fontSize: 15)),
             ),
-          );
-        }).toList()),
-        const SizedBox(height: 12),
+            const SizedBox(width: 8),
+            const Text('daqiqa',
+                style: TextStyle(color: AppColors.textHint, fontSize: 12)),
+            const Spacer(),
+            Text('${t['narx']} so\'m',
+                style: const TextStyle(color: AppColors.textPrimary,
+                    fontWeight: FontWeight.w600, fontSize: 14)),
+          ]),
+        )),
+        const SizedBox(height: 8),
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: AppColors.primaryDark.withValues(alpha: 0.1),
+            color: AppColors.primaryDark.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.border),
           ),
-          child: const Text(
-            'Tarif olish uchun admin bilan bog\'laning',
-            style: TextStyle(color: AppColors.textHint,
-                fontSize: 12),
-            textAlign: TextAlign.center,
-          ),
+          child: const Row(children: [
+            Icon(Icons.info_outline, size: 14, color: AppColors.textHint),
+            SizedBox(width: 8),
+            Expanded(child: Text(
+              'Tarif olish uchun admin bilan bog\'laning',
+              style: TextStyle(color: AppColors.textHint, fontSize: 12),
+            )),
+          ]),
         ),
       ] else ...[
         // Aktiv tarif
