@@ -23,13 +23,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // CEO uchun 3 ta tab, boshqalar uchun 2 ta
   bool get _ceomi => widget.user.isCeo;
+  bool get _obunalimi {
+    final tt = widget.user.tarifTugash;
+    return tt != null && tt.isAfter(DateTime.now());
+  }
+  bool get _guruhYaratishMumkin =>
+      widget.user.isCeo || (widget.user.isDomla && _obunalimi);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: _buildBody(),
       bottomNavigationBar: _buildNavBar(),
-      floatingActionButton: _currentIndex == 0 && (widget.user.isDomla || widget.user.isCeo)
+      floatingActionButton: _currentIndex == 0 && _guruhYaratishMumkin
           ? FloatingActionButton(
               onPressed: _guruhYaratish,
               backgroundColor: AppColors.primaryDark,
@@ -43,7 +49,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_ceomi) {
       // CEO: 0=Guruhlar, 1=Panel, 2=Profil
       if (_currentIndex == 0) return _buildHome();
-      if (_currentIndex == 1) return CeoPanelScreen(user: widget.user);
+      if (_currentIndex == 1) return CeoPanelScreen();
       return ProfileScreen(user: widget.user);
     } else {
       // Ustoz/Talaba: 0=Guruhlar, 1=Profil

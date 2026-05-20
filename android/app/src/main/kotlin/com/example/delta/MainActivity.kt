@@ -95,6 +95,13 @@ class MainActivity : FlutterFragmentActivity() {
                         startForegroundService(serviceIntent)
                     else
                         startService(serviceIntent)
+
+                    // LiveKit MediaProjection ni ScreenRecorderService bilan ulashamiz
+                    val mgr = getSystemService(Context.MEDIA_PROJECTION_SERVICE)
+                            as MediaProjectionManager
+                    ScreenRecorderService.sharedMediaProjection =
+                        mgr.getMediaProjection(resultCode, data)
+
                     pendingScreenResult?.success(true)
                 } else {
                     pendingScreenResult?.error("PERMISSION_DENIED", "Ruxsat berilmadi", null)

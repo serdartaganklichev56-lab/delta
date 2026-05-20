@@ -196,11 +196,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 user.isCeo ? 'CEO' : user.isDomla ? 'Ustoz' : 'Talaba'),
           ]),
 
-          // Tarif bloki (faqat ustoz)
-          if (user.isDomla) ...[
-            const SizedBox(height: 16),
-            _buildTarifBlok(),
-          ],
+          // Obuna banner — barcha foydalanuvchilar uchun
+          const SizedBox(height: 16),
+          _buildObunaBanner(),
 
           // Telegram bloki (faqat ustoz)
           if (user.isDomla) ...[
@@ -216,127 +214,147 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ── Tarif bloki ─────────────────────────────────────────────────────────────
-  Widget _buildTarifBlok() {
-    final user = widget.user;
-    final faol = _tarifTugash != null &&
-        _tarifTugash!.isAfter(DateTime.now());
+  // ── Obuna banner ──────────────────────────────────────────────────────────────
+  Widget _buildObunaBanner() {
+    final tt = _tarifTugash;
+    final faol = tt != null && tt.isAfter(DateTime.now());
+    final qolganKun = tt != null ? tt.difference(DateTime.now()).inDays : 0;
 
-    return _blok(children: [
-      Row(children: [
-        const Icon(Icons.timer_outlined, size: 18, color: AppColors.primary),
-        const SizedBox(width: 6),
-        const Text('Tarif',
-            style: TextStyle(fontWeight: FontWeight.bold,
-                fontSize: 14, color: AppColors.textPrimary)),
-        const Spacer(),
-        if (_yuklanmoqda)
-          const SizedBox(width: 16, height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2))
-        else if (faol)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: AppColors.green.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(_qolganKunlar(),
-                style: const TextStyle(color: AppColors.green,
-                    fontSize: 11, fontWeight: FontWeight.w600)),
-          )
-        else if (user.hasTarif)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: AppColors.red.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Text('Muddati tugagan',
-                style: TextStyle(color: AppColors.red, fontSize: 11)),
+    return GestureDetector(
+      onTap: faol ? null : () => _obunaMalumot(),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: faol
+              ? AppColors.green.withValues(alpha: 0.08)
+              : AppColors.surfaceLight,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: faol
+                ? AppColors.green.withValues(alpha: 0.3)
+                : AppColors.border,
           ),
-      ]),
-      const SizedBox(height: 14),
+        ),
+        child: faol
+            ? Row(children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.green.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.verified, color: AppColors.green, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Text('Obuna faol',
+                      style: TextStyle(color: AppColors.green,
+                          fontWeight: FontWeight.bold, fontSize: 14)),
+                  Text('$qolganKun kun qoldi',
+                      style: TextStyle(
+                          color: AppColors.textPrimary.withValues(alpha: 0.5),
+                          fontSize: 12)),
+                ])),
+                Text('$qolganKun kun',
+                    style: const TextStyle(color: AppColors.green,
+                        fontWeight: FontWeight.bold, fontSize: 16)),
+              ])
+            : Row(children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.info_outline, color: Colors.orange, size: 20),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text("Obuna yo'q",
+                      style: TextStyle(color: Colors.orange,
+                          fontWeight: FontWeight.bold, fontSize: 14)),
+                  Text("Batafsil ma'lumot uchun bosing",
+                      style: TextStyle(color: AppColors.textHint, fontSize: 12)),
+                ])),
+                const Icon(Icons.chevron_right, color: AppColors.textHint),
+              ]),
+      ),
+    );
+  }
 
-      if (!user.hasTarif) ...[
-        // Tariflar ro'yxati — narxlar bilan
-        const Text('Tariflar',
-            style: TextStyle(color: AppColors.textHint, fontSize: 12)),
-        const SizedBox(height: 10),
-        ...[ 
-          {'daqiqa': '1500', 'narx': '150 000'},
-          {'daqiqa': '3000', 'narx': '300 000'},
-          {'daqiqa': '6000', 'narx': '600 000'},
-        ].map((t) => Container(
-          margin: const EdgeInsets.only(bottom: 8),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: AppColors.primaryDark.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.border),
+  void _obunaMalumot() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.background,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Container(width: 40, height: 4,
+              decoration: BoxDecoration(color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2))),
+          const SizedBox(height: 20),
+          const Text('Obuna imkoniyatlari',
+              style: TextStyle(color: AppColors.textPrimary,
+                  fontWeight: FontWeight.bold, fontSize: 18)),
+          const SizedBox(height: 20),
+          ...[
+            'Guruh yaratish',
+            'Cheksiz daqiqa stream',
+            '60 talabagacha',
+            "Dars yozuvi (o'z qurilmangizda)",
+            'Whiteboard',
+          ].map((f) => Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Row(children: [
+              const Icon(Icons.check_circle, color: AppColors.green, size: 18),
+              const SizedBox(width: 10),
+              Text(f, style: const TextStyle(color: AppColors.textPrimary, fontSize: 14)),
+            ]),
+          )),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.primaryDark.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Narx:', style: TextStyle(color: AppColors.textHint, fontSize: 14)),
+                Text('200 000 so\'m / 30 kun',
+                    style: TextStyle(color: AppColors.primary,
+                        fontWeight: FontWeight.bold, fontSize: 15)),
+              ],
+            ),
           ),
-          child: Row(children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(8),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.telegram, size: 18),
+              label: const Text('Support: @DeltaEduBot'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
               ),
-              child: Text(t['daqiqa']!,
-                  style: const TextStyle(color: AppColors.primary,
-                      fontWeight: FontWeight.bold, fontSize: 15)),
+              onPressed: () async {
+                final url = Uri.parse('https://t.me/DeltaEduBot');
+                if (await canLaunchUrl(url)) {
+                  await launchUrl(url, mode: LaunchMode.externalApplication);
+                }
+              },
             ),
-            const SizedBox(width: 8),
-            const Text('daqiqa',
-                style: TextStyle(color: AppColors.textHint, fontSize: 12)),
-            const Spacer(),
-            Text('${t['narx']} so\'m',
-                style: const TextStyle(color: AppColors.textPrimary,
-                    fontWeight: FontWeight.w600, fontSize: 14)),
-          ]),
-        )),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: AppColors.primaryDark.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.border),
           ),
-          child: const Row(children: [
-            Icon(Icons.info_outline, size: 14, color: AppColors.textHint),
-            SizedBox(width: 8),
-            Expanded(child: Text(
-              'Tarif olish uchun admin bilan bog\'laning',
-              style: TextStyle(color: AppColors.textHint, fontSize: 12),
-            )),
-          ]),
-        ),
-      ] else ...[
-        // Aktiv tarif
-        Row(children: [
-          Expanded(child: _statMini('Tarif',
-              '${user.tarifDaqiqa} min', AppColors.primary)),
-          const SizedBox(width: 8),
-          Expanded(child: _statMini("Qolgan",
-              '${user.minutesLeft} min', AppColors.green)),
-          const SizedBox(width: 8),
-          Expanded(child: _statMini("Qo'shimcha",
-              '${user.extraMinutes} min', Colors.orange)),
+          const SizedBox(height: 8),
         ]),
-        const SizedBox(height: 10),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: user.tarifLimit > 0
-                ? (user.minutesLeft / user.tarifLimit).clamp(0.0, 1.0)
-                : 0,
-            backgroundColor: AppColors.border,
-            valueColor: const AlwaysStoppedAnimation(AppColors.primary),
-            minHeight: 5,
-          ),
-        ),
-      ],
-    ]);
+      ),
+    );
   }
 
   // ── Telegram bloki ──────────────────────────────────────────────────────────

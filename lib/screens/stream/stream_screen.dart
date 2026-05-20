@@ -2,10 +2,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 import 'package:livekit_client/livekit_client.dart';
-import 'package:flutter_background/flutter_background.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/user_model.dart';
@@ -13,6 +13,7 @@ import '../../models/room_model.dart';
 import '../guruh/whiteboard_screen.dart';
 
 const String _tokenServer = 'http://178.105.129.234:3000';
+const MethodChannel _recordChannel = MethodChannel('com.example.delta/record');
 
 class StreamScreen extends StatefulWidget {
   final RoomModel room;
@@ -224,7 +225,6 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
     if (_ekranUlashish) {
       try {
         await _localParticipant!.setScreenShareEnabled(false);
-        if (Platform.isAndroid) await FlutterBackground.disableBackgroundExecution();
         if (mounted) setState(() => _ekranUlashish = false);
       } catch (e) {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(
@@ -235,36 +235,16 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
     }
 
     try {
-      bool hasCapturePermission = await Helper.requestCapturePermission();
-      if (!hasCapturePermission) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Ekran ulashishga ruxsat berilmadi'),
-                backgroundColor: Colors.red));
-        return;
-      }
-      if (Platform.isAndroid) {
-        const androidConfig = FlutterBackgroundAndroidConfig(
-          notificationTitle: 'Delta',
-          notificationText: 'Ekran ulashilmoqda...',
-          notificationImportance: AndroidNotificationImportance.normal,
-        );
-        await FlutterBackground.initialize(androidConfig: androidConfig);
-        await FlutterBackground.enableBackgroundExecution();
-      }
       if (_videoOchiq) {
         await _localParticipant!.setCameraEnabled(false);
-        _videoOchiq = false;
+        if (mounted) setState(() => _videoOchiq = false);
       }
       await _localParticipant!.setScreenShareEnabled(true,
           screenShareCaptureOptions:
               const ScreenShareCaptureOptions(captureScreenAudio: false));
-      _ekranUlashish = true;
+      if (mounted) setState(() => _ekranUlashish = true);
       _roomListener();
-      if (mounted) setState(() {});
     } catch (e) {
-      if (Platform.isAndroid) {
-        try { await FlutterBackground.disableBackgroundExecution(); } catch (_) {}
-      }
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Ekran ulashishda xato: $e'),
               backgroundColor: AppColors.red));
@@ -368,7 +348,6 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
       if (_ekranUlashish) {
         try {
           await _localParticipant?.setScreenShareEnabled(false);
-          if (Platform.isAndroid) await FlutterBackground.disableBackgroundExecution();
           _ekranUlashish = false;
         } catch (_) {}
       }
