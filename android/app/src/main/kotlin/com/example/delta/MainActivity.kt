@@ -41,8 +41,9 @@ class MainActivity : FlutterFragmentActivity() {
                         startActivityForResult(mgr.createScreenCaptureIntent(), REQUEST_SCREEN)
                     }
                     "stopScreenCapture" -> {
-                        // Ekran ulashish to'xtatilganda sharedMediaProjection ham tozalanadi
-                        ScreenRecorderService.sharedMediaProjection = null
+                        // FIX 1: screenCaptureResultCode va screenCaptureData ham tozalanadi
+                        ScreenRecorderService.screenCaptureResultCode = 0
+                        ScreenRecorderService.screenCaptureData = null
                         stopService(Intent(this, ScreenCaptureService::class.java))
                         result.success(true)
                     }
@@ -55,39 +56,19 @@ class MainActivity : FlutterFragmentActivity() {
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "startRecording" -> {
-                        // Agar ekran ulashish allaqachon ochiq bo'lsa (sharedMediaProjection bor)
-                        // yangi ruxsat so'ramaymiz — sharedMediaProjection ishlatiladi
-                        if (ScreenRecorderService.sharedMediaProjection != null) {
-                            val sdf = SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault())
-                            val fileName = "delta_${sdf.format(Date())}.mp4"
-                            val dir = getExternalFilesDir(Environment.DIRECTORY_MOVIES) ?: filesDir
-                            if (!dir.exists()) dir.mkdirs()
-                            val filePath = File(dir, fileName).absolutePath
+                        // FIX 2: Android 14+ da bir resultCode/data faqat bir MediaProjection uchun.
+                        // LiveKit allaqachon o'sha resultCode/data ni ishlatgan bo'ladi.
+                        // Shuning uchun yozish uchun HAR DOIM yangi ruxsat so'raymiz.
+                        val sdf = SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault())
+                        val fileName = "delta_${sdf.format(Date())}.mp4"
+                        val dir = getExternalFilesDir(Environment.DIRECTORY_MOVIES) ?: filesDir
+                        if (!dir.exists()) dir.mkdirs()
+                        pendingRecordFilePath = File(dir, fileName).absolutePath
+                        pendingRecordResult = result
 
-                            val serviceIntent = Intent(this, ScreenRecorderService::class.java).apply {
-                                action = ScreenRecorderService.ACTION_START
-                                putExtra(ScreenRecorderService.EXTRA_FILE_PATH, filePath)
-                                // resultCode va data kerak emas — sharedMediaProjection ishlatiladi
-                            }
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-                                startForegroundService(serviceIntent)
-                            else
-                                startService(serviceIntent)
-
-                            result.success(filePath)
-                        } else {
-                            // Ekran ulashish yo'q — yangi MediaProjection so'raymiz
-                            val sdf = SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault())
-                            val fileName = "delta_${sdf.format(Date())}.mp4"
-                            val dir = getExternalFilesDir(Environment.DIRECTORY_MOVIES) ?: filesDir
-                            if (!dir.exists()) dir.mkdirs()
-                            pendingRecordFilePath = File(dir, fileName).absolutePath
-                            pendingRecordResult = result
-
-                            val mgr = getSystemService(Context.MEDIA_PROJECTION_SERVICE)
-                                    as MediaProjectionManager
-                            startActivityForResult(mgr.createScreenCaptureIntent(), REQUEST_RECORD)
-                        }
+                        val mgr = getSystemService(Context.MEDIA_PROJECTION_SERVICE)
+                                as MediaProjectionManager
+                        startActivityForResult(mgr.createScreenCaptureIntent(), REQUEST_RECORD)
                     }
                     "stopRecording" -> {
                         val stopIntent = Intent(this, ScreenRecorderService::class.java).apply {
@@ -121,20 +102,11 @@ class MainActivity : FlutterFragmentActivity() {
                     else
                         startService(serviceIntent)
 
-                    // sharedMediaProjection — yozish uchun alohida MediaProjection
-                    // LiveKit ning resultCode/data dan BOSHQA MediaProjection ochamiz
-                    // Bu Android 10+ da ishlaydi
-                    try {
-                        val mgr = getSystemService(Context.MEDIA_PROJECTION_SERVICE)
-                                as MediaProjectionManager
-                        // Eslatma: Android 14+ da bir resultCode faqat bir marta ishlatiladi
-                        // Shuning uchun sharedMediaProjection ni LiveKit boshlaganidan keyin olamiz
-                        // Bu yerda faqat flag qo'yamiz
-                        ScreenRecorderService.screenCaptureResultCode = resultCode
-                        ScreenRecorderService.screenCaptureData = data
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                    }
+                    // FIX 3: screenCaptureResultCode/Data saqlaymiz —
+                    // lekin bular endi faqat ma'lumot sifatida, yozish uchun ishlatilmaydi.
+                    // (Android 14+ da bu resultCode allaqachon LiveKit tomonidan ishlatiladi)
+                    ScreenRecorderService.screenCaptureResultCode = resultCode
+                    ScreenRecorderService.screenCaptureData = data
 
                     pendingScreenResult?.success(true)
                 } else {

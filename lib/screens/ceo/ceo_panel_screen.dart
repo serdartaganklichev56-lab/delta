@@ -223,7 +223,6 @@ class _FoydalanuvchilarTab extends StatelessWidget {
 
     final tugash = DateTime.now().add(const Duration(days: 30));
 
-    // Daromad yozamiz
     await FirebaseFirestore.instance.collection('daromad').add({
       'uid': uid,
       'ism': ism,
@@ -233,7 +232,6 @@ class _FoydalanuvchilarTab extends StatelessWidget {
       'yil': DateTime.now().year,
     });
 
-    // Ikki kolleksiyaga ham yozamiz
     final batch = FirebaseFirestore.instance.batch();
     batch.set(
       FirebaseFirestore.instance.collection('foydalanuvchilar').doc(uid),
@@ -265,26 +263,9 @@ class _UstozlarTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return StreamBuilder(
       stream: FirebaseFirestore.instance
-          .collection('daromad')
+          .collection('foydalanuvchilar')
           .snapshots(),
       builder: (context, snap) {
-        // Daromad hisoblash
-        final daromadDocs = snap.data?.docs ?? [];
-        int jami = 0, buoy = 0;
-        final now2 = DateTime.now();
-        for (final doc in daromadDocs) {
-          final d = doc.data() as Map<String, dynamic>;
-          final summa = d['summa'] as int? ?? 200000;
-          jami += summa;
-          final vaqt = d['vaqt'] as int?;
-          if (vaqt != null) {
-            final dt = DateTime.fromMillisecondsSinceEpoch(vaqt);
-            if (dt.month == now2.month && dt.year == now2.year) buoy += summa;
-          }
-        }
-        return StreamBuilder(
-          stream: FirebaseFirestore.instance.collection('foydalanuvchilar').snapshots(),
-          builder: (context, snap) {
         final allDocs = snap.data?.docs ?? [];
         final now = DateTime.now();
         final obunalilar = allDocs.where((doc) {
@@ -335,7 +316,6 @@ class _UstozlarTab extends StatelessWidget {
                           fontSize: 11, fontWeight: FontWeight.w600)),
                 ),
                 const SizedBox(height: 4),
-                // Uzaytirish tugmasi
                 GestureDetector(
                   onTap: () => _uzaytirish(context, uid, ism),
                   child: Container(
@@ -375,7 +355,6 @@ class _UstozlarTab extends StatelessWidget {
     );
     if (ok != true) return;
 
-    // Hozirgi tarifTugash ni olib, 30 kun qo'shamiz
     final doc = await FirebaseFirestore.instance
         .collection('foydalanuvchilar').doc(uid).get();
     final data = doc.data() ?? {};
@@ -487,13 +466,13 @@ class _DaromadSahifa extends StatelessWidget {
       ]),
       builder: (context, snap) {
         if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-        
+
         final daromadDocs = snap.data![0].docs;
         final foydalanuvchiDocs = snap.data![1].docs;
-        
+
         int jami = 0, buoy = 0, obunaliSoni = 0;
         final now = DateTime.now();
-        
+
         for (final doc in daromadDocs) {
           final d = doc.data() as Map<String, dynamic>;
           final summa = d['summa'] as int? ?? 200000;
@@ -504,7 +483,7 @@ class _DaromadSahifa extends StatelessWidget {
             if (dt.month == now.month && dt.year == now.year) buoy += summa;
           }
         }
-        
+
         for (final doc in foydalanuvchiDocs) {
           final data = doc.data() as Map<String, dynamic>;
           final tt = data['tarifTugash'] as int?;
@@ -571,26 +550,9 @@ class _ObunaSahifa extends StatelessWidget {
   Widget build(BuildContext context) {
     return StreamBuilder(
       stream: FirebaseFirestore.instance
-          .collection('daromad')
+          .collection('foydalanuvchilar')
           .snapshots(),
       builder: (context, snap) {
-        // Daromad hisoblash
-        final daromadDocs = snap.data?.docs ?? [];
-        int jami = 0, buoy = 0;
-        final now2 = DateTime.now();
-        for (final doc in daromadDocs) {
-          final d = doc.data() as Map<String, dynamic>;
-          final summa = d['summa'] as int? ?? 200000;
-          jami += summa;
-          final vaqt = d['vaqt'] as int?;
-          if (vaqt != null) {
-            final dt = DateTime.fromMillisecondsSinceEpoch(vaqt);
-            if (dt.month == now2.month && dt.year == now2.year) buoy += summa;
-          }
-        }
-        return StreamBuilder(
-          stream: FirebaseFirestore.instance.collection('foydalanuvchilar').snapshots(),
-          builder: (context, snap) {
         final docs = snap.data?.docs ?? [];
         final now = DateTime.now();
         final obunalilar = docs.where((doc) {

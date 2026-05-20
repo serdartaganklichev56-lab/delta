@@ -24,12 +24,9 @@ class ScreenRecorderService : Service() {
         const val CHANNEL_ID        = "screen_recorder_channel"
         const val NOTIF_ID          = 2
 
-        // Ekran ulashish resultCode va data — yangi MediaProjection ochish uchun
+        // Ekran ulashish resultCode va data
         var screenCaptureResultCode: Int = 0
         var screenCaptureData: Intent? = null
-
-        // Agar ekran ulashish allaqachon bor bo'lsa — shu MediaProjection ishlatiladi
-        var sharedMediaProjection: MediaProjection? = null
 
         // Oxirgi yozilgan fayl yo'li
         var lastFilePath: String = ""
@@ -64,24 +61,10 @@ class ScreenRecorderService : Service() {
                 outputFile = intent.getStringExtra(EXTRA_FILE_PATH) ?: ""
                 startForeground(NOTIF_ID, buildNotification())
 
-                // Yozish uchun MediaProjection olish
+                // FIX 1: Android 14+ da bir resultCode/data faqat BIR MediaProjection uchun
+                // ishlatilishi mumkin. Shuning uchun screenCaptureData dan yangi MP ochilmaydi.
+                // Intent orqali kelgan resultCode/data ishlatiladi (REQUEST_RECORD holati).
                 when {
-                    // 1. Ekran ulashish ochiq — shu resultCode/data dan yangi MP ochamiz
-                    screenCaptureData != null && screenCaptureResultCode != 0 -> {
-                        try {
-                            val mgr = getSystemService(Context.MEDIA_PROJECTION_SERVICE)
-                                    as MediaProjectionManager
-                            mediaProjection = mgr.getMediaProjection(
-                                screenCaptureResultCode, screenCaptureData!!)
-                            ownMediaProjection = true
-                            startRecording()
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                            // Fallback: yangi ruxsat kerak
-                            stopSelf()
-                        }
-                    }
-                    // 2. Intent dan resultCode/data keldi
                     intent.getIntExtra(EXTRA_RESULT_CODE, 0) != 0 -> {
                         val resultCode = intent.getIntExtra(EXTRA_RESULT_CODE, Activity.RESULT_CANCELED)
                         val data = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
@@ -137,7 +120,7 @@ class ScreenRecorderService : Service() {
 
         try {
             setupVideoCodec(width, height)
-            setupAudioCodec()
+            setupAudioRecord()
             setupMuxer()
             setupVirtualDisplay(width, height, density)
             isRecording = true
@@ -173,16 +156,20 @@ class ScreenRecorderService : Service() {
         )
     }
 
-    private fun setupAudioCodec() {
+    // FIX 2: setupAudioCodec emas, faqat AudioRecord ni bu yerda tayyor qilamiz.
+    // AudioCodec ni audioThread ichida yasaymiz (thread-safe).
+    private fun setupAudioRecord() {
         val sampleRate  = 44100
         val channelConf = AudioFormat.CHANNEL_IN_MONO
         val audioFormat = AudioFormat.ENCODING_PCM_16BIT
         val minBufSize  = AudioRecord.getMinBufferSize(sampleRate, channelConf, audioFormat)
 
+        // FIX 3: VOICE_COMMUNICATION ishlatiladi — MIC gürültüyü ko'proq beradi,
+        // VOICE_COMMUNICATION esa echo cancellation bilan yaxshiroq ishlaydi.
         audioRecord = AudioRecord(
-            MediaRecorder.AudioSource.MIC,
+            MediaRecorder.AudioSource.VOICE_COMMUNICATION,
             sampleRate, channelConf, audioFormat,
-            minBufSize * 2
+            minBufSize * 4  // FIX 4: buffer kattaroq — underrun oldini olish uchun
         )
     }
 
@@ -253,18 +240,23 @@ class ScreenRecorderService : Service() {
                     }
                 }
 
+                // FIX 5: INFO_OUTPUT_FORMAT_CHANGED (-2) manfiy son, while (>= 0) ga kirmasligi kerak.
+                // Alohida tekshiruv bilan olib chiqamiz.
                 var outputIndex = audioCodec.dequeueOutputBuffer(bufferInfo, 0)
-                while (outputIndex >= 0) {
-                    if (outputIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
-                        audioTrackIndex = mediaMuxer!!.addTrack(audioCodec.outputFormat)
-                        startMuxerIfReady()
-                    } else if (outputIndex >= 0) {
-                        if (muxerStarted &&
-                            bufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0) {
-                            val buf = audioCodec.getOutputBuffer(outputIndex)!!
-                            mediaMuxer!!.writeSampleData(audioTrackIndex, buf, bufferInfo)
+                while (outputIndex != MediaCodec.INFO_TRY_AGAIN_LATER) {
+                    when {
+                        outputIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
+                            audioTrackIndex = mediaMuxer!!.addTrack(audioCodec.outputFormat)
+                            startMuxerIfReady()
                         }
-                        audioCodec.releaseOutputBuffer(outputIndex, false)
+                        outputIndex >= 0 -> {
+                            if (muxerStarted &&
+                                bufferInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0) {
+                                val buf = audioCodec.getOutputBuffer(outputIndex)!!
+                                mediaMuxer!!.writeSampleData(audioTrackIndex, buf, bufferInfo)
+                            }
+                            audioCodec.releaseOutputBuffer(outputIndex, false)
+                        }
                     }
                     outputIndex = audioCodec.dequeueOutputBuffer(bufferInfo, 0)
                 }
@@ -286,16 +278,25 @@ class ScreenRecorderService : Service() {
 
     private fun stopRecording() {
         isRecording = false
+
+        // FIX 6: signalEndOfInputStream AVVAL chaqirilishi kerak (thread join dan oldin),
+        // aks holda videoThread hech qachon END_OF_STREAM ni olmaydi va join timeout beradi.
+        try { mediaCodec?.signalEndOfInputStream() } catch (_: Exception) {}
+
         try { videoThread?.join(3000) } catch (_: Exception) {}
         try { audioThread?.join(3000) } catch (_: Exception) {}
-        try { mediaCodec?.signalEndOfInputStream() } catch (_: Exception) {}
+
         try { mediaCodec?.stop(); mediaCodec?.release() } catch (_: Exception) {}
         try { audioRecord?.stop(); audioRecord?.release() } catch (_: Exception) {}
         try { virtualDisplay?.release() } catch (_: Exception) {}
         if (ownMediaProjection) {
             try { mediaProjection?.stop() } catch (_: Exception) {}
         }
-        try { if (muxerStarted) mediaMuxer?.stop(); mediaMuxer?.release() } catch (_: Exception) {}
+
+        // FIX 7: mediaMuxer?.stop() va mediaMuxer?.release() bir try blokida bo'lishi kerak,
+        // lekin stop() ishlamasa release() ham chaqirilmay qoladi. Ikki try ajratildi.
+        try { if (muxerStarted) mediaMuxer?.stop() } catch (_: Exception) {}
+        try { mediaMuxer?.release() } catch (_: Exception) {}
 
         mediaCodec      = null
         audioRecord     = null
