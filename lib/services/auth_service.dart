@@ -27,6 +27,7 @@ class AuthService {
     required String password,
     String phone = '',
     String role = 'talaba',
+    String? telegramChatId,
   }) async {
     final cred = await _auth.createUserWithEmailAndPassword(
       email: email,
@@ -42,6 +43,7 @@ class AuthService {
       email: email,
       role: role,
       createdAt: DateTime.now(),
+      telegramChatId: telegramChatId,
     );
 
     await _db.collection('foydalanuvchilar').doc(uid).set({
