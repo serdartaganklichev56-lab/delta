@@ -480,15 +480,20 @@ class _DaromadSahifa extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder(
-      stream: FirebaseFirestore.instance
-          .collection('daromad')
-          .snapshots(),
+    return FutureBuilder(
+      future: Future.wait([
+        FirebaseFirestore.instance.collection('daromad').get(),
+        FirebaseFirestore.instance.collection('foydalanuvchilar').get(),
+      ]),
       builder: (context, snap) {
-        // Daromad hisoblash
-        final daromadDocs = snap.data?.docs ?? [];
-        int jami = 0, buoy = 0;
-        final now2 = DateTime.now();
+        if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+        
+        final daromadDocs = snap.data![0].docs;
+        final foydalanuvchiDocs = snap.data![1].docs;
+        
+        int jami = 0, buoy = 0, obunaliSoni = 0;
+        final now = DateTime.now();
+        
         for (final doc in daromadDocs) {
           final d = doc.data() as Map<String, dynamic>;
           final summa = d['summa'] as int? ?? 200000;
@@ -496,18 +501,11 @@ class _DaromadSahifa extends StatelessWidget {
           final vaqt = d['vaqt'] as int?;
           if (vaqt != null) {
             final dt = DateTime.fromMillisecondsSinceEpoch(vaqt);
-            if (dt.month == now2.month && dt.year == now2.year) buoy += summa;
+            if (dt.month == now.month && dt.year == now.year) buoy += summa;
           }
         }
-        return StreamBuilder(
-          stream: FirebaseFirestore.instance.collection('foydalanuvchilar').snapshots(),
-          builder: (context, snap) {
-        final docs = snap.data?.docs ?? [];
-        final now = DateTime.now();
-        int jami = 0, buoy = 0;
-        int obunaliSoni = 0;
-
-        for (final doc in docs) {
+        
+        for (final doc in foydalanuvchiDocs) {
           final data = doc.data() as Map<String, dynamic>;
           final tt = data['tarifTugash'] as int?;
           if (tt != null && DateTime.fromMillisecondsSinceEpoch(tt).isAfter(now)) {
@@ -531,8 +529,6 @@ class _DaromadSahifa extends StatelessWidget {
             _bigCard("Faol obunalar", "$obunaliSoni ta",
                 Colors.orange, Icons.verified_outlined),
           ]),
-        );
-        },
         );
       },
     );
