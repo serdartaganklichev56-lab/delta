@@ -36,7 +36,6 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
 
   // Egress holati — "Yozish" tugmasiga bog'langan
   bool _yozilmoqda = false;
-  String? _egressId;
 
   bool _oldKamera = true;
   VideoTrack? _remoteVideoTrack;
@@ -126,7 +125,7 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // "Yozish" tugmasi — Egress boshlash / to'xtatish
+  // "Yozish" tugmasi — qurilmada ScreenRecorderService orqali
   // ─────────────────────────────────────────────────────────────────────────
   Future<void> _ekranYozishToggle() async {
     if (!_menUstoz) return;
@@ -134,15 +133,11 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
     if (_yozilmoqda) {
       // ── TO'XTATISH ──────────────────────────────────────────────────────
       try {
-        await http.post(
-          Uri.parse('$_tokenServer/egress/stop'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({'egressId': _egressId}),
-        );
+        await _recordChannel.invokeMethod('stopRecording');
         if (mounted) {
-          setState(() { _yozilmoqda = false; _egressId = null; });
+          setState(() => _yozilmoqda = false);
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('✅ Yozish tugadi — Telegram ga yuboriladi'),
+              content: Text('✅ Yozish tugadi — fayl saqlandi'),
               backgroundColor: Colors.green));
         }
       } catch (e) {
@@ -155,38 +150,12 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
 
     // ── BOSHLASH ────────────────────────────────────────────────────────────
     try {
-      // telegramChatId ni Firestore dan o'qiymiz (UserModel ga field qo'shmaslik uchun)
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users').doc(widget.user.uid).get();
-      final chatId = (userDoc.data()?['telegramChatId'] as String?) ?? '';
-
-      final response = await http.post(
-        Uri.parse('$_tokenServer/egress/start'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'roomName': widget.room.id,
-          'chatId':   chatId,
-          'ustozName': widget.user.fullName,
-          'metadata': jsonEncode({
-            'chat_id': chatId,
-            'ustoz':   widget.user.fullName,
-          }),
-        }),
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (mounted) {
-          setState(() {
-            _egressId    = data['egressId'] as String?;
-            _yozilmoqda  = true;
-          });
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('🔴 Yozish boshlandi'),
-              backgroundColor: Colors.red));
-        }
-      } else {
-        throw Exception('Server xatosi: ${response.statusCode}');
+      final filePath = await _recordChannel.invokeMethod<String>('startRecording');
+      if (mounted) {
+        setState(() => _yozilmoqda = true);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('🔴 Yozish boshlandi'),
+            backgroundColor: Colors.red));
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
@@ -333,16 +302,11 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
 
   Future<void> _streamniTugat() async {
     if (_menUstoz) {
-      // Yozish davom etayotgan bo'lsa Egress ni to'xtatamiz
-      if (_yozilmoqda && _egressId != null) {
+      // Yozish davom etayotgan bo'lsa to'xtatamiz
+      if (_yozilmoqda) {
         try {
-          await http.post(
-            Uri.parse('$_tokenServer/egress/stop'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'egressId': _egressId}),
-          );
+          await _recordChannel.invokeMethod('stopRecording');
           _yozilmoqda = false;
-          _egressId   = null;
         } catch (_) {}
       }
       if (_ekranUlashish) {

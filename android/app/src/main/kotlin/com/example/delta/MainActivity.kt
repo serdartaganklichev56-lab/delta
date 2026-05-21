@@ -18,53 +18,20 @@ import java.util.*
 
 class MainActivity : FlutterFragmentActivity() {
 
-    private val SCREEN_CHANNEL = "com.example.delta/screen"
     private val RECORD_CHANNEL = "com.example.delta/record"
-    private val REQUEST_SCREEN = 1001
+    private val REQUEST_RECORD = 1002
 
-    private var pendingScreenResult: MethodChannel.Result? = null
     private var pendingRecordResult: MethodChannel.Result? = null
     private var pendingRecordFilePath: String = ""
 
     companion object {
-        // Yagona MediaProjection — LiveKit ham, Recorder ham shu orqali ishlaydi
         var sharedMediaProjection: MediaProjection? = null
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        // Ekran ulashish channel (LiveKit uchun)
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, SCREEN_CHANNEL)
-            .setMethodCallHandler { call, result ->
-                when (call.method) {
-                    "startScreenCapture" -> {
-                        if (sharedMediaProjection != null) {
-                            // Allaqachon bor — qayta ruxsat so'ramaymiz
-                            result.success(true)
-                        } else {
-                            pendingScreenResult = result
-                            val mgr = getSystemService(Context.MEDIA_PROJECTION_SERVICE)
-                                    as MediaProjectionManager
-                            startActivityForResult(mgr.createScreenCaptureIntent(), REQUEST_SCREEN)
-                        }
-                    }
-                    "stopScreenCapture" -> {
-                        // Recorder ham ishlab turgan bo'lishi mumkin — avval to'xtatamiz
-                        stopService(Intent(this, ScreenRecorderService::class.java).apply {
-                            action = ScreenRecorderService.ACTION_STOP
-                        })
-                        stopService(Intent(this, ScreenCaptureService::class.java))
-                        sharedMediaProjection?.stop()
-                        sharedMediaProjection = null
-                        ScreenRecorderService.sharedMediaProjection = null
-                        result.success(true)
-                    }
-                    else -> result.notImplemented()
-                }
-            }
-
-        // Ekran yozish channel
+        // Faqat yozish channel — ekran ulashish LiveKit o'zi hal qiladi
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, RECORD_CHANNEL)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -75,34 +42,19 @@ class MainActivity : FlutterFragmentActivity() {
                         if (!dir.exists()) dir.mkdirs()
                         val filePath = File(dir, fileName).absolutePath
 
-                        if (sharedMediaProjection != null) {
-                            // ✅ Ekran ulashish ochiq — shu MediaProjection dan 2-VirtualDisplay
-                            ScreenRecorderService.sharedMediaProjection = sharedMediaProjection
-                            val serviceIntent = Intent(this, ScreenRecorderService::class.java).apply {
-                                action = ScreenRecorderService.ACTION_START
-                                putExtra(ScreenRecorderService.EXTRA_FILE_PATH, filePath)
-                            }
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-                                startForegroundService(serviceIntent)
-                            else
-                                startService(serviceIntent)
-                            result.success(filePath)
-                        } else {
-                            // Ekran ulashish yo'q — ruxsat so'raymiz (bu ham LiveKit uchun ochadi)
-                            pendingRecordFilePath = filePath
-                            pendingRecordResult = result
-                            // REQUEST_SCREEN ishlatamiz — bir ruxsat har ikkisiga yetadi
-                            pendingScreenResult = null
-                            val mgr = getSystemService(Context.MEDIA_PROJECTION_SERVICE)
-                                    as MediaProjectionManager
-                            startActivityForResult(mgr.createScreenCaptureIntent(), REQUEST_SCREEN)
-                        }
+                        // Yozish uchun har doim yangi ruxsat — LiveKit ning MP siga tegmaymiz
+                        pendingRecordFilePath = filePath
+                        pendingRecordResult = result
+                        val mgr = getSystemService(Context.MEDIA_PROJECTION_SERVICE)
+                                as MediaProjectionManager
+                        startActivityForResult(mgr.createScreenCaptureIntent(), REQUEST_RECORD)
                     }
                     "stopRecording" -> {
                         stopService(Intent(this, ScreenRecorderService::class.java).apply {
                             action = ScreenRecorderService.ACTION_STOP
                         })
-                        // sharedMediaProjection qoladi — LiveKit davom etadi
+                        sharedMediaProjection?.stop()
+                        sharedMediaProjection = null
                         ScreenRecorderService.sharedMediaProjection = null
                         result.success(true)
                     }
@@ -117,45 +69,29 @@ class MainActivity : FlutterFragmentActivity() {
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        if (requestCode == REQUEST_SCREEN) {
+        if (requestCode == REQUEST_RECORD) {
             if (resultCode == Activity.RESULT_OK && data != null) {
-                // Yagona MediaProjection ochiladi
                 val mgr = getSystemService(Context.MEDIA_PROJECTION_SERVICE)
                         as MediaProjectionManager
                 val mp = mgr.getMediaProjection(resultCode, data)
                 sharedMediaProjection = mp
+                ScreenRecorderService.sharedMediaProjection = mp
 
-                // LiveKit uchun foreground service
-                val serviceIntent = Intent(this, ScreenCaptureService::class.java)
+                val serviceIntent = Intent(this, ScreenRecorderService::class.java).apply {
+                    action = ScreenRecorderService.ACTION_START
+                    putExtra(ScreenRecorderService.EXTRA_FILE_PATH, pendingRecordFilePath)
+                }
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
                     startForegroundService(serviceIntent)
                 else
                     startService(serviceIntent)
 
-                if (pendingRecordResult != null) {
-                    // Yozish uchun kelgan — recorder ni ham shu MP bilan ishga tushuramiz
-                    ScreenRecorderService.sharedMediaProjection = mp
-                    val recIntent = Intent(this, ScreenRecorderService::class.java).apply {
-                        action = ScreenRecorderService.ACTION_START
-                        putExtra(ScreenRecorderService.EXTRA_FILE_PATH, pendingRecordFilePath)
-                    }
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-                        startForegroundService(recIntent)
-                    else
-                        startService(recIntent)
-                    pendingRecordResult?.success(pendingRecordFilePath)
-                    pendingRecordResult = null
-                    pendingRecordFilePath = ""
-                }
-
-                pendingScreenResult?.success(true)
+                pendingRecordResult?.success(pendingRecordFilePath)
             } else {
-                pendingScreenResult?.error("PERMISSION_DENIED", "Ruxsat berilmadi", null)
                 pendingRecordResult?.error("PERMISSION_DENIED", "Ruxsat berilmadi", null)
-                pendingRecordResult = null
-                pendingRecordFilePath = ""
             }
-            pendingScreenResult = null
+            pendingRecordResult = null
+            pendingRecordFilePath = ""
         }
         super.onActivityResult(requestCode, resultCode, data)
     }
