@@ -13,7 +13,6 @@ import '../../models/room_model.dart';
 import '../guruh/whiteboard_screen.dart';
 
 const String _tokenServer = 'http://178.105.129.234:3000';
-const MethodChannel _recordChannel = MethodChannel('com.example.delta/record');
 
 class StreamScreen extends StatefulWidget {
   final RoomModel room;
@@ -33,9 +32,6 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
   bool _micOchiq = false;
   bool _videoOchiq = false;
   bool _ekranUlashish = false;
-
-  // Egress holati — "Yozish" tugmasiga bog'langan
-  bool _yozilmoqda = false;
 
   bool _oldKamera = true;
   VideoTrack? _remoteVideoTrack;
@@ -124,45 +120,6 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // "Yozish" tugmasi — qurilmada ScreenRecorderService orqali
-  // ─────────────────────────────────────────────────────────────────────────
-  Future<void> _ekranYozishToggle() async {
-    if (!_menUstoz) return;
-
-    if (_yozilmoqda) {
-      // ── TO'XTATISH ──────────────────────────────────────────────────────
-      try {
-        await _recordChannel.invokeMethod('stopRecording');
-        if (mounted) {
-          setState(() => _yozilmoqda = false);
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('✅ Yozish tugadi — fayl saqlandi'),
-              backgroundColor: Colors.green));
-        }
-      } catch (e) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("To'xtatishda xato: $e"),
-                backgroundColor: AppColors.red));
-      }
-      return;
-    }
-
-    // ── BOSHLASH ────────────────────────────────────────────────────────────
-    try {
-      final filePath = await _recordChannel.invokeMethod<String>('startRecording');
-      if (mounted) {
-        setState(() => _yozilmoqda = true);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('🔴 Yozish boshlandi'),
-            backgroundColor: Colors.red));
-      }
-    } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Yozishda xato: $e'),
-              backgroundColor: AppColors.red));
-    }
-  }
 
   void _roomListener() {
     if (_room == null || !mounted) return;
@@ -302,13 +259,7 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
 
   Future<void> _streamniTugat() async {
     if (_menUstoz) {
-      // Yozish davom etayotgan bo'lsa to'xtatamiz
-      if (_yozilmoqda) {
-        try {
-          await _recordChannel.invokeMethod('stopRecording');
-          _yozilmoqda = false;
-        } catch (_) {}
-      }
+
       if (_ekranUlashish) {
         try {
           await _localParticipant?.setScreenShareEnabled(false);
@@ -349,21 +300,6 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
           _buildVideoArea(),
           _buildHeader(),
           Positioned(bottom: 0, left: 0, right: 0, child: _buildControls()),
-          if (_yozilmoqda)
-            Positioned(
-              top: 60, right: 16,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                    color: Colors.red.withValues(alpha: 0.9),
-                    borderRadius: BorderRadius.circular(20)),
-                child: const Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.fiber_manual_record, color: Colors.white, size: 10),
-                  SizedBox(width: 4),
-                  Text('REC', style: TextStyle(color: Colors.white,
-                      fontSize: 11, fontWeight: FontWeight.bold)),
-                ]),
-              ),
             ),
           if (_menUstoz && _videoOchiq && !_ekranUlashish)
             Positioned(
@@ -540,13 +476,6 @@ class _StreamScreenState extends State<StreamScreen> with WidgetsBindingObserver
             rang: _ekranUlashish ? Colors.green : Colors.white24,
             onTap: _ekranUlashishToggle,
             label: _ekranUlashish ? "To'xtat" : 'Ekran',
-          ),
-          // "Yozish" tugmasi — Egress boshlash/to'xtatish
-          _kontrolTugma(
-            icon: _yozilmoqda ? Icons.stop_circle : Icons.fiber_manual_record,
-            rang: _yozilmoqda ? Colors.red : Colors.white24,
-            onTap: _ekranYozishToggle,
-            label: _yozilmoqda ? "To'xtat" : 'Yozish',
           ),
         ],
 
